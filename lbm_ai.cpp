@@ -36,7 +36,7 @@ inline FloatTimePoint GetCurrentTime() {
 }	 // namespace timer
 
 template <typename L>
-concept Lattice = requires {
+concept LatticeType = requires {
 	// Compile-time constants exist and have sensible types
 	requires std::is_integral_v<decltype(L::DIM)>;
 	requires std::is_integral_v<decltype(L::Q)>;
@@ -204,7 +204,7 @@ class D3Q27 {
 };
 
 // CRTP base class for simulation models
-template <typename Derived, Lattice LATTICE>
+template <typename Derived, LatticeType LATTICE>
 class Models {
  public:
 	// virtual ~Models() = default;
@@ -301,7 +301,7 @@ class Models {
 };
 
 // Standard LBM implementation inheriting from Models using CRTP
-template <Lattice LATTICE>
+template <LatticeType LATTICE>
 class LBM : public Models<LBM<LATTICE>, LATTICE> {
 	// template <int DIM, int Q>
  private:
@@ -315,13 +315,17 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 	double current_time;
 	double dt;
 
+	// Fields
 	// Flattened storage arrays
+	//!!! why are these dynamic vectors, the depend only on above static variables.
 	std::vector<double> f, f_new, rho;
 	std::vector<std::array<double, DIM>> velocity;
 	std::vector<double> vorticity;
 
 	// Note: In 3D, vorticity would be a vector field
 
+	// todo: precompute and store as an unordered map perhaps. or an ordered one whichever is better.
+	// then O(1) lookup at runtime.
 	// inline Helper function to convert multi-dimensional position to flat index
 	int getNodeIndex(const std::array<int, DIM>& pos) const {
 		int index = 0;
@@ -347,6 +351,7 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 		// for streaming: SoA is better, since we need neighbouring nodes for each f_i
 	}
 
+	// todo: precompute at initialisation and store in an array.
 	//  inline Convert flat index back to multi-dimensional position
 	std::array<int, DIM> getPosition(int flat_index) const {
 		std::array<int, DIM> pos;
@@ -359,7 +364,7 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 
  private:
 	double computeEquilibrium(int k, double rho_val,
-														const std::array<double, DIM>& u) const {
+														const std::array<double, DIM>& u_vel) const {
 		const auto& v = LATTICE::velocities;
 		const auto& w = LATTICE::weights;
 
@@ -367,15 +372,14 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 		double usqr = 0.0;
 		for (int d = 0; d < DIM; ++d) {
 			size_t cIdx = k + d * Q;	// !!! cache : strided access
-			cu += v[cIdx] * u[d];
+			cu += v[cIdx] * u_vel[d];
 			// cu += v[k][d] * u[d];
-			usqr += u[d] * u[d];
+			usqr += u_vel[d] * u_vel[d];
 		}
 		return w[k] * rho_val * (1.0 + 3.0 * cu + 4.5 * cu * cu - 1.5 * usqr);
 	}
 
 	void computeMacroscopic() {
-
 		const auto& v = LATTICE::velocities;
 #pragma omp parallel for
 		for (int i = 0; i < total_nodes; ++i) {
@@ -502,10 +506,141 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 		current_time = 0.0;
 	}
 
+	// todo:!!! inline this function for better everything, lots of reuse here.
 	void step() {
-		computeMacroscopic();
-		collide();
-		stream();
+
+		/**
+		 *  computeMacroscopic();
+		*/
+		const auto v = LATTICE::velocities;
+		const auto w = LATTICE::weights;
+
+#pragma omp parallel for
+		for (int i = 0; i < total_nodes; ++i) {
+			// reset
+			double rho_acc = 0.0;
+			std::array<double, DIM> u_acc{};
+
+			// sum over directions
+			for (int k = 0; k < Q; ++k) {
+				// [SoA]
+				// int idx = k * total_nodes + i; //!!! change access pattern as above in getDistIndex()
+
+				// [AoS]
+				int idx = k + i * Q;	// stride over k = 1
+				// here prefer to have sequential access in k (over populations)
+
+				double fk = this->f[idx];
+				rho_acc += fk;
+				for (int d = 0; d < DIM; ++d) {
+					size_t cIdx = k + d * Q;
+					u_acc[d] += v[cIdx] * fk;
+					// u_acc[d] += v[k][d] * fk;
+				}
+			}
+			// normalize
+			rho[i] = rho_acc;
+			if (rho_acc > 0.0) {
+				for (int d = 0; d < DIM; ++d)
+					velocity[i][d] = u_acc[d] / rho_acc;
+			} else [[unlikely]] {
+				// /!!! todo: throw error here, rho <= 0 is not physical behaviour
+				std::cerr << " negative density \n ";
+				// return;
+			}
+		}
+		/**
+		 *  computeMacroscopic();
+		*/
+
+		/**
+		 * collide();
+		*/
+#pragma omp parallel for
+		for (int i = 0; i < total_nodes; ++i) {
+
+			// std::array<int,DIM> usqr{0.};
+			double usqr{0.};
+			for (size_t d = 0; d < DIM; ++d) {	// dot(u,u)
+				usqr += velocity[i][d] * velocity[i][d];
+			}
+
+			for (int k = 0; k < Q; ++k) {
+				// [AoS] // stride over k = 1
+				int idx = k + i * Q;
+				//!!! access pattern: [p0] 0, 1, 2, ... Q-1, [p1] 0, 1, 2, ... Q-1, [p2] 0, 1, 2, ... Q-1, ...
+
+				// [SoA]
+				// int idx = k * total_nodes + i;  [SoA]
+				//!!! ^^^ results in non-sequential access: 0,total_nodes,2*total_nodes,...,1,1+total_nodes,1+2*total_nodes...,2,...
+
+				// double feq = computeEquilibrium(k, rho[i], velocity[i]);
+				/**
+				 * computeEquilibrium
+				 */
+				// const auto& v = LATTICE::velocities;
+				// const auto& w = LATTICE::weights;
+
+				double cu = 0.0;
+				// double usqr = 0.0;
+				for (int d = 0; d < DIM; ++d) {
+					size_t cIdx = k + d * Q;	// !!! cache : strided access
+					cu += v[cIdx] * velocity[i][d];
+					// cu += v[k][d] * u[d];
+					// usqr += velocity[i][d] * velocity[i][d];
+				}
+				// return w[k] * rho_val * (1.0 + 3.0 * cu + 4.5 * cu * cu - 1.5 * usqr);
+				/**
+				 * computeEquilibrium
+				*/
+				double feq =
+					w[k] * rho[i] * (1.0 + 3.0 * cu + 4.5 * cu * cu - 1.5 * usqr);
+
+				f_new[idx] = f[idx] - (f[idx] - feq) / tau;
+			}
+		}
+		/**
+		 *  collide();
+		*/
+
+		/**
+		 *   stream();
+		*/
+		// const auto& v = LATTICE::velocities;
+// stream each population along its direction
+#pragma omp parallel for
+		for (int i = 0; i < total_nodes; ++i) {
+			auto pos = getPosition(i);	// precompute
+			for (int k = 0; k < Q; ++k) {
+				// !!! todo:  precompute neighbours or pointers to neighbours possible? instead of computing at runtime
+				std::array<int, DIM> npos;
+				for (int d = 0; d < DIM;
+						 ++d) {	 // precompute this loop, avoid the math inside.
+					// applies the periodic boundary conditions, wraps at the domain boundary
+					size_t cIdx = k + d * Q;
+					npos[d] = (pos[d] + v[cIdx] + domain_size[d]) % domain_size[d];
+					// npos[d] = (pos[d] + v[k][d] + lattice_size[d]) % lattice_size[d];
+				}
+
+				// [AoS]
+				int dst = k + getNodeIndex(npos) *
+												Q;	//todo: preocompute the flat index to vector mapping
+				int src = k + i * Q;
+
+				// [SoA]
+				// int dst = k * total_nodes + getNodeIndex(npos);
+				// int src = k * total_nodes + i;
+
+				f[dst] = f_new[src];
+				// todo: replace with inplace streaming,
+				//!!! check race conditions, none exist currently
+				//!!! possible with inplace streaming
+			}
+		}
+		/**
+		 *   stream();
+		*/
+
 		current_step++;
 		current_time += dt;
 	}
@@ -670,7 +805,8 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 };
 
 // todo: need class members, initial values of macro quantities etc, useful for calculations later.
-//!!! either CRTP or pass this to class to model to initialize.
+//!!! todo!!! maybe should derive from the model and not have it as a member.
+//!!! that simplifies the initialisation.
 template <typename Derived, typename ModelType>
 class Setups {
  public:
@@ -688,7 +824,7 @@ class Setups {
 };
 
 // todo: need class members, initial values of macro quantities etc, useful for calculations later.
-template <typename ModelType, Lattice LATTICE>
+template <typename ModelType, LatticeType LATTICE>
 class TaylorGreenVortex
 		: public Setups<TaylorGreenVortex<ModelType, LATTICE>, ModelType> {
  public:
@@ -832,7 +968,7 @@ class TaylorGreenVortex
 };
 
 // todo: need class members, initial values of macro quantities etc, useful for calculations later.
-template <typename ModelType, Lattice LATTICE>
+template <typename ModelType, LatticeType LATTICE>
 class DoublePeriodicShearLayer
 		: public Setups<DoublePeriodicShearLayer<ModelType, LATTICE>, ModelType> {
  public:
@@ -901,18 +1037,18 @@ int main() {
 
 	// Simulation parameters
 	constexpr size_t DIM = 2;
-	constexpr double scale = 1.;
-	constexpr size_t LX = 200;	//16 * scale;
-	constexpr size_t LY = 200;	//16 * scale;
+	constexpr double scale = 25.;
+	constexpr size_t LX = 500;	//16 * scale;
+	constexpr size_t LY = 500;	//16 * scale;
 	// timestep to do validation plots and error checks.
 	bool SAVE_FILE = true;
-	constexpr size_t SAVE_INTERVAL = 250;
+	constexpr size_t SAVE_INTERVAL = 1250;
 
 	// constexpr size_t NSTEPS = 6000;
 	constexpr int checkpoint = 50 * scale;
 	constexpr size_t NSTEPS = checkpoint + 1;
 
-	std::array<int, DIM> lattice_size = {LX, LY};
+	std::array<int, DIM> domain_size = {LX, LY};
 
 	//!!! todo: make it so that the viscosity is set by the setup, currently confusing
 	constexpr double visc = 0.01;	 // can be overridden by the setup
@@ -921,8 +1057,10 @@ int main() {
 	// std::unique_ptr<Models<DIM>> model =
 	// 	std::make_unique<LBM<D2Q9>>(lattice_size, visc);
 
+	// typedef typename LBM<D2Q9>> model_type;
+
 	// Instantiate specific model
-	auto model = std::make_unique<LBM<D2Q9>>(lattice_size, visc);
+	auto model = std::make_unique<LBM<D2Q9>>(domain_size, visc);
 
 	// Initialize the model :
 	model->init();

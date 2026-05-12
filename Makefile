@@ -1,5 +1,6 @@
 CXX = g++
-CXXFLAGS = -O3 -g -Wall -std=c++20 -fopenmp
+CXXFLAGS_OPT = -O3 -g -Wall -std=c++20 -fopenmp
+CXXFLAGS_DEBUG = -O2 -g -Wall -std=c++20 -fopenmp
 TARGET = lbm.x
 SRC = lbm_ai.cpp
 
@@ -8,12 +9,15 @@ SRC = lbm_ai.cpp
 # O2 -> O3 : approx 30% improvement or more. 
 # -march=native -flto -funroll-loops -> currently no difference on top of O3
 
-.PHONY: all clean run visualize simulate
+.PHONY: all debug clean run visualize simulate
 
 all: $(TARGET)
 	
 $(TARGET): $(SRC)
-	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SRC)
+	$(CXX) $(CXXFLAGS_OPT) -o $(TARGET) $(SRC)
+
+debug: $(SRC)
+	$(CXX) $(CXXFLAGS_DEBUG) -o $(TARGET) $(SRC)
 
 run: $(TARGET)
 	./$(TARGET)
