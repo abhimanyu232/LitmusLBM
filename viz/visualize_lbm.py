@@ -124,16 +124,16 @@ def create_all_animations(output_dir='plots', fps=6):
 		create_mp4_from_images(os.path.join(output_dir, 'combined_fields_*.png'), os.path.join(output_dir, 'combined_animation.mp4'), fps=fps)
 
 def main():
-		# Get all velocity and vorticity data files from lbm_ai directory
-		velocity_files = sorted(glob.glob('lbm_ai/velocity_*.txt'))
-		vorticity_files = sorted(glob.glob('lbm_ai/vorticity_*.txt'))
+		# Get all velocity and vorticity data files from result_fields directory
+		velocity_files = sorted(glob.glob('result_fields/velocity_*.txt'))
+		vorticity_files = sorted(glob.glob('result_fields/vorticity_*.txt'))
 
 		if not velocity_files:
-				print("No velocity data files found in lbm_ai directory!")
+				print("No velocity data files found in result_fields directory!")
 				return
 
 		if not vorticity_files:
-				print("No vorticity data files found in lbm_ai directory!")
+				print("No vorticity data files found in result_fields directory!")
 				return
 
 		print(f"Found {len(velocity_files)} velocity field files")

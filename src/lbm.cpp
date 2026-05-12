@@ -21,9 +21,9 @@
 #include <chrono>
 
 // LBM includes
-#include "include/common.h"
-#include "include/lattices.h"
-#include "include/mesh.h"
+#include "../include/common.h"
+#include "../include/lattices.h"
+#include "../include/mesh.h"
 
 // CRTP base class for simulation models
 template <typename Derived, LatticeType LATTICE>
@@ -167,94 +167,94 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 		return w[k] * rho_val * (1.0 + 3.0 * cu + 4.5 * cu * cu - 1.5 * usqr);
 	}
 
-	void computeMacroscopic() {
-		const auto& v = LATTICE::velocities;
-#pragma omp parallel for
-		for (size_t i = 0; i < mesh->total_nodes; ++i) {
-			// reset
-			double rho_acc = 0.0;
-			std::array<double, DIM> u_acc{};
+// 	void computeMacroscopic() {
+// 		const auto& v = LATTICE::velocities;
+// #pragma omp parallel for
+// 		for (size_t i = 0; i < mesh->total_nodes; ++i) {
+// 			// reset
+// 			double rho_acc = 0.0;
+// 			std::array<double, DIM> u_acc{};
 
-			// sum over directions
-			for (size_t k = 0; k < Q; ++k) {
-				// [SoA]
-				// size_t idx = k * total_nodes + i; //!!! change access pattern as above in getDistIndex()
+// 			// sum over directions
+// 			for (size_t k = 0; k < Q; ++k) {
+// 				// [SoA]
+// 				// size_t idx = k * total_nodes + i; //!!! change access pattern as above in getDistIndex()
 
-				// [AoS]
-				size_t idx = k + i * Q;	 // stride over k = 1
-				// here prefer to have sequential access in k (over populations)
+// 				// [AoS]
+// 				size_t idx = k + i * Q;	 // stride over k = 1
+// 				// here prefer to have sequential access in k (over populations)
 
-				double fk = this->f[idx];
-				rho_acc += fk;
-				for (size_t d = 0; d < DIM; ++d) {
-					size_t cIdx = k + d * Q;
-					u_acc[d] += v[cIdx] * fk;
-					// u_acc[d] += v[k][d] * fk;
-				}
-			}
-			// normalize
-			rho[i] = rho_acc;
-			if (rho_acc > 0.0) {
-				for (size_t d = 0; d < DIM; ++d)
-					velocity[i][d] = u_acc[d] / rho_acc;
-			} else [[unlikely]] {
-				// /!!! todo: throw error here, rho <= 0 is not physical behaviour
-				std::cerr << " negative density \n ";
-				// return;
-			}
-		}
-	}
+// 				double fk = this->f[idx];
+// 				rho_acc += fk;
+// 				for (size_t d = 0; d < DIM; ++d) {
+// 					size_t cIdx = k + d * Q;
+// 					u_acc[d] += v[cIdx] * fk;
+// 					// u_acc[d] += v[k][d] * fk;
+// 				}
+// 			}
+// 			// normalize
+// 			rho[i] = rho_acc;
+// 			if (rho_acc > 0.0) {
+// 				for (size_t d = 0; d < DIM; ++d)
+// 					velocity[i][d] = u_acc[d] / rho_acc;
+// 			} else [[unlikely]] {
+// 				// /!!! todo: throw error here, rho <= 0 is not physical behaviour
+// 				std::cerr << " negative density \n ";
+// 				// return;
+// 			}
+// 		}
+// 	}
 
-	void collide() {
-#pragma omp parallel for
-		for (size_t i = 0; i < mesh->total_nodes; ++i) {
-			for (size_t k = 0; k < Q; ++k) {
-				// [AoS] // stride over k = 1
-				size_t idx = k + i * Q;
-				//!!! access pattern: [p0] 0, 1, 2, ... Q-1, [p1] 0, 1, 2, ... Q-1, [p2] 0, 1, 2, ... Q-1, ...
+// 	void collide() {
+// #pragma omp parallel for
+// 		for (size_t i = 0; i < mesh->total_nodes; ++i) {
+// 			for (size_t k = 0; k < Q; ++k) {
+// 				// [AoS] // stride over k = 1
+// 				size_t idx = k + i * Q;
+// 				//!!! access pattern: [p0] 0, 1, 2, ... Q-1, [p1] 0, 1, 2, ... Q-1, [p2] 0, 1, 2, ... Q-1, ...
 
-				// [SoA]
-				// size_t idx = k * total_nodes + i;  [SoA]
-				//!!! ^^^ results in non-sequential access: 0,total_nodes,2*total_nodes,...,1,1+total_nodes,1+2*total_nodes...,2,...
+// 				// [SoA]
+// 				// size_t idx = k * total_nodes + i;  [SoA]
+// 				//!!! ^^^ results in non-sequential access: 0,total_nodes,2*total_nodes,...,1,1+total_nodes,1+2*total_nodes...,2,...
 
-				double feq = computeEquilibrium(k, rho[i], velocity[i]);
-				f_new[idx] = f[idx] - (f[idx] - feq) / tau;
-			}
-		}
-	}
+// 				double feq = computeEquilibrium(k, rho[i], velocity[i]);
+// 				f_new[idx] = f[idx] - (f[idx] - feq) / tau;
+// 			}
+// 		}
+// 	}
 
-	void stream() {
-		const auto& v = LATTICE::velocities;
-// stream each population along its direction
-#pragma omp parallel for
-		for (size_t i = 0; i < mesh->total_nodes; ++i) {
-			// auto pos = mesh->nodes[i];
-			for (size_t k = 0; k < Q; ++k) {
-				// !!! todo:  precompute neighbours or pointers to neighbours possible? instead of computing at runtime
-				// std::array<int, DIM> npos; // todo: check for negatives at the boundary.
-				// for (size_t d = 0; d < DIM; ++d) {
-				// 	// applies the periodic boundary conditions, wraps at the domain boundary
-				// 	size_t cIdx = k + d * Q;
-				// 	npos[d] = (pos[d] + v[cIdx] + domain_size[d]) % domain_size[d];
-				// 	// npos[d] = (pos[d] + v[k][d] + lattice_size[d]) % lattice_size[d];
-				// }
+// 	void stream() {
+// 		const auto& v = LATTICE::velocities;
+// // stream each population along its direction
+// #pragma omp parallel for
+// 		for (size_t i = 0; i < mesh->total_nodes; ++i) {
+// 			// auto pos = mesh->nodes[i];
+// 			for (size_t k = 0; k < Q; ++k) {
+// 				// !!! todo:  precompute neighbours or pointers to neighbours possible? instead of computing at runtime
+// 				// std::array<int, DIM> npos; // todo: check for negatives at the boundary.
+// 				// for (size_t d = 0; d < DIM; ++d) {
+// 				// 	// applies the periodic boundary conditions, wraps at the domain boundary
+// 				// 	size_t cIdx = k + d * Q;
+// 				// 	npos[d] = (pos[d] + v[cIdx] + domain_size[d]) % domain_size[d];
+// 				// 	// npos[d] = (pos[d] + v[k][d] + lattice_size[d]) % lattice_size[d];
+// 				// }
 
-				// [AoS]
-				size_t dst =
-					mesh->neighbour_index[i][k];	// k + mesh->getNodeIndex(npos) * Q;
-				size_t src = k + i * Q;
+// 				// [AoS]
+// 				size_t dst =
+// 					mesh->neighbour_index[i][k];	// k + mesh->getNodeIndex(npos) * Q;
+// 				size_t src = k + i * Q;
 
-				// [SoA]
-				// size_t dst = k * total_nodes + mesh->getNodeIndex(npos);
-				// size_t src = k * total_nodes + i;
+// 				// [SoA]
+// 				// size_t dst = k * total_nodes + mesh->getNodeIndex(npos);
+// 				// size_t src = k * total_nodes + i;
 
-				f[dst] = f_new[src];
-				// todo: replace with inplace streaming,
-				//!!! check race conditions, none exist currently
-				//!!! possible with inplace streaming
-			}
-		}
-	}
+// 				f[dst] = f_new[src];
+// 				// todo: replace with inplace streaming,
+// 				//!!! check race conditions, none exist currently
+// 				//!!! possible with inplace streaming
+// 			}
+// 		}
+// 	}
 
  public:
 	LBM(const std::array<size_t, DIM>& size, double viscosity)
@@ -837,7 +837,7 @@ int main() {
 						<< std::endl;
 
 	// Create output directory
-	std::string result_directory_name = "lbm_ai";
+	std::string result_directory_name = "result_fields";
 	std::filesystem::path dir(result_directory_name);
 	if (!std::filesystem::exists(dir)) {
 		if (std::filesystem::create_directory(dir)) {	 // default permissions

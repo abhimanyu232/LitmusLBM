@@ -2,7 +2,7 @@ CXX = g++
 CXXFLAGS_OPT = -O3 -g -Wall -std=c++20 -fopenmp
 CXXFLAGS_DEBUG = -O2 -g -Wall -std=c++20 -fopenmp
 TARGET = lbm.x
-SRC = lbm_ai.cpp
+SRC = src/lbm.cpp
 
 # O0 -> O1 : approx 1100% improvement or more. 
 # O1 -> O2 : approx 20-25% improvement or more. 
@@ -27,9 +27,6 @@ visualize:
 
 clean:
 	rm -f $(TARGET)
-	rm -rf lbm_ai/velocity_*.txt lbm_ai/vorticity_*.txt
-	rm -rf plots/velocity_field_*.png  plots/vorticity_field_*.png plots/combined_fields_*.png 
-	rm plot/*.mp4
 
 # Run everything: compile, simulate, and visualize
 simulate: clean run visualize

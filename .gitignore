@@ -13,9 +13,6 @@
 
 *.png   
 
-lbm_ai
-lbm_ai/*
-
 plots/
 plots/*
 
