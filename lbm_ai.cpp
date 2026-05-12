@@ -20,188 +20,10 @@
 
 #include <chrono>
 
-namespace timer {
-using namespace std::chrono_literals;
-using Time = std::chrono::steady_clock;
-// using Time = std::chrono::high_resolution_clock;
-// can use ::system_clock which is not guaranteed to be monotonic.
-// hence, prefer ::steady_clock.
-
-using DoubleSeconds = std::chrono::duration<double>;
-using FloatTimePoint = std::chrono::time_point<Time, DoubleSeconds>;
-
-inline FloatTimePoint GetCurrentTime() {
-	return Time::now();
-}
-}	 // namespace timer
-
-template <typename L>
-concept LatticeType = requires {
-	// Compile-time constants exist and have sensible types
-	requires std::is_integral_v<decltype(L::DIM)>;
-	requires std::is_integral_v<decltype(L::Q)>;
-	requires std::is_floating_point_v<decltype(L::Cs)>;
-	// Static arrays exist with correct sizes (catches DIM*Q mismatch)
-	requires std::tuple_size_v<std::remove_cvref_t<decltype(L::velocities)>> ==
-						 static_cast<std::size_t>(L::DIM* L::Q);
-	requires std::tuple_size_v<std::remove_cvref_t<decltype(L::weights)>> ==
-						 static_cast<std::size_t>(L::Q);
-};
-
-// D2Q9 lattice implementation
-class D2Q9 {
- public:
-	static constexpr int DIM = 2;
-	static constexpr int Q = 9;
-	// static constexpr T0 = 1. / 3.0;
-	static constexpr double Cs = 1.0 / std::sqrt(3.0);
-
-	static constexpr std::array<int, DIM * Q> velocities = {
-		// x components
-		0, 1, 0, -1, 0, 1, -1, -1, 1,
-		// y components
-		0, 0, 1, 0, -1, 1, 1, -1, -1};
-
-	static constexpr std::array<int, Q> reflected_index = {0, 3, 4, 1, 2,
-																												 7, 8, 6, 5};
-
-	static constexpr std::array<double, Q> weights = {
-		4.0 / 9.0,	1.0 / 9.0,	1.0 / 9.0,	1.0 / 9.0, 1.0 / 9.0,
-		1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0};
-
- public:
-	// static getters
-
-	const int getQ() const { return Q; }
-
-	// double getT0() const { return T0; }
-
-	const double getLatticeSpeedofSound() const { return Cs; }
-
-	const std::array<int, DIM * Q>& getVelocities() const { return velocities; }
-
-	const std::array<double, Q>& getWeights() const { return weights; }
-
-	static const std::string getName() { return "D2Q9"; }
-};
-
-// D2Q5 lattice implementation
-class D2Q5 {
- public:
-	static constexpr int DIM = 2;
-	static constexpr int Q = 5;
-	static constexpr std::array<int, DIM * Q> velocities = {	// x components
-		0, 1, 0, -1, 0,
-		// y components
-		0, 0, 1, 0, -1};
-	static constexpr std::array<int, Q> reflected_index = {0, 3, 4, 1, 2};
-	static constexpr std::array<double, Q> weights = {
-		(1.0 / 3.0), (1.0 / 6.0), (1.0 / 6.0), (1.0 / 6.0), (1.0 / 6.0)};
-
-	// static constexpr T0 = 1. / 3.0;
-	static constexpr double Cs = 1. / std::sqrt(3.0);
-
- public:
-	// static getters
-	const int getQ() const { return Q; }
-
-	// static double getT0() const { return T0; }
-
-	const double getLatticeSpeedofSound() const { return Cs; }
-
-	const std::array<int, DIM * Q>& getVelocities() const { return velocities; }
-
-	const std::array<double, Q>& getWeights() const { return weights; }
-
-	static const std::string getName() { return "D2Q5"; }
-};
-
-// D3Q19 lattice implementation
-class D3Q19 {
- public:
-	static constexpr int DIM = 3;
-	static constexpr int Q = 19;
-	static constexpr double Cs = 1. / std::sqrt(3.0);
-
-	static constexpr std::array<int, DIM * Q> velocities = {
-		// x components
-		0, 1, -1, 0, 0, 0, 0, 1, 1, -1, -1, 1, 1, -1, -1, 0, 0, 0, 0,
-		// y components
-		0, 0, 0, 1, -1, 0, 0, 1, -1, 1, -1, 0, 0, 0, 0, 1, 1, -1, -1,
-		// z components
-		0, 0, 0, 0, 0, 1, -1, 0, 0, 0, 0, 1, -1, 1, -1, 1, -1, 1, -1};
-
-	static constexpr std::array<double, Q> weights = {
-		// Rest particle
-		1.0 / 3.0,
-
-		// Face neighbors (6)
-		1.0 / 18.0, 1.0 / 18.0, 1.0 / 18.0, 1.0 / 18.0, 1.0 / 18.0, 1.0 / 18.0,
-
-		// Edge neighbors (12)
-		1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0,
-		1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0};
-
- public:
-	// static getters
-	const int getQ() const { return Q; }
-
-	const double getLatticeSpeedofSound() const { return Cs; }
-
-	const std::array<int, DIM * Q>& getVelocities() const { return velocities; }
-
-	const std::array<double, Q>& getWeights() const { return weights; }
-
-	static const std::string getName() { return "D3Q19"; }
-};
-
-// D3Q27 lattice implementation
-class D3Q27 {
- public:
-	static constexpr int DIM = 3;
-	static constexpr int Q = 27;
-	static constexpr double Cs = 1. / std::sqrt(3.0);
-	// Initialize D3Q27 velocities: {cx, cy, cz}
-	// Order: rest particle, face neighbors, edge neighbors, corner neighbors
-	static constexpr std::array<int, DIM * Q> velocities = {
-		// x components
-		0, 1, -1, 0, 0, 0, 0, 1, 1, -1, -1, 1, 1, -1, -1, 0, 0, 0, 0, 1, 1, 1, 1,
-		-1, -1, -1, -1,
-		// y components
-		0, 0, 0, 1, -1, 0, 0, 1, -1, 1, -1, 0, 0, 0, 0, 1, 1, -1, -1, 1, 1, -1, -1,
-		1, 1, -1, -1,
-		// z components
-		0, 0, 0, 0, 0, 1, -1, 0, 0, 0, 0, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1,
-		1, -1, 1, -1};
-
-	static constexpr std::array<double, Q> weights = {
-		// Rest particle
-		8.0 / 27.0,
-
-		// Face neighbors (6)
-		2.0 / 27.0, 2.0 / 27.0, 2.0 / 27.0, 2.0 / 27.0, 2.0 / 27.0, 2.0 / 27.0,
-
-		// Edge neighbors (12)
-		1.0 / 54.0, 1.0 / 54.0, 1.0 / 54.0, 1.0 / 54.0, 1.0 / 54.0, 1.0 / 54.0,
-		1.0 / 54.0, 1.0 / 54.0, 1.0 / 54.0, 1.0 / 54.0, 1.0 / 54.0, 1.0 / 54.0,
-
-		// Corner neighbors (8)
-		1.0 / 216.0, 1.0 / 216.0, 1.0 / 216.0, 1.0 / 216.0, 1.0 / 216.0,
-		1.0 / 216.0, 1.0 / 216.0, 1.0 / 216.0};
-
- public:
-	// static getters
-
-	const int getQ() const { return Q; }
-
-	const double getLatticeSpeedofSound() const { return Cs; }
-
-	const std::array<int, DIM * Q>& getVelocities() const { return velocities; }
-
-	const std::array<double, Q>& getWeights() const { return weights; }
-
-	static const std::string getName() { return "D3Q27"; }
-};
+// LBM includes
+#include "include/common.h"
+#include "include/lattices.h"
+#include "include/mesh.h"
 
 // CRTP base class for simulation models
 template <typename Derived, LatticeType LATTICE>
@@ -224,7 +46,8 @@ class Models {
 		static_cast<Derived*>(this)->saveVorticityField(filename);
 	}
 
-	void saveVelocitySlice2D(int index, int axis, const std::string& filename) {
+	void saveVelocitySlice2D(size_t index, size_t axis,
+													 const std::string& filename) {
 		static_cast<Derived*>(this)->saveVelocitySlice2D(index, axis, filename);
 	};
 
@@ -233,7 +56,7 @@ class Models {
 		return static_cast<const Derived*>(this)->getModelName();
 	}
 
-	int getCurrentStep() const {
+	size_t getCurrentStep() const {
 		return static_cast<const Derived*>(this)->getCurrentStep();
 	}
 
@@ -259,43 +82,44 @@ class Models {
 	}
 
 	// Initialization helpers for external setups
-	int getTotalNodes() const {
+	size_t getTotalNodes() const {
 		return static_cast<const Derived*>(this)->getTotalNodes();
 	}
 
-	int getQ() const { return static_cast<const Derived*>(this)->getQ(); }
+	size_t getQ() const { return static_cast<const Derived*>(this)->getQ(); }
 
-	std::array<int, LATTICE::DIM> getLatticeSize() const {
+	std::array<size_t, LATTICE::DIM> getLatticeSize() const {
 		return static_cast<const Derived*>(this)->getLatticeSize();
 	}
 
-	std::array<int, LATTICE::DIM> getPositionFromIndex(int idx) const {
+	std::array<size_t, LATTICE::DIM> getPositionFromIndex(size_t idx) const {
 		return static_cast<const Derived*>(this)->getPositionFromIndex(idx);
 	}
 
-	void setRhoAtIndex(int idx, double rho) {
+	void setRhoAtIndex(size_t idx, double rho) {
 		static_cast<Derived*>(this)->setRhoAtIndex(idx, rho);
 	}
 
-	void setVelocityAtIndex(int idx, const std::array<double, LATTICE::DIM>& u) {
+	void setVelocityAtIndex(size_t idx,
+													const std::array<double, LATTICE::DIM>& u) {
 		static_cast<Derived*>(this)->setVelocityAtIndex(idx, u);
 	}
 
-	void setFAt(int k, int idx, double value) {
+	void setFAt(size_t k, size_t idx, double value) {
 		static_cast<Derived*>(this)->setFAt(k, idx, value);
 	}
 
 	double computeEquilibriumForInit(
-		int k, double rho_val, const std::array<double, LATTICE::DIM>& u) const {
+		size_t k, double rho_val, const std::array<double, LATTICE::DIM>& u) const {
 		return static_cast<const Derived*>(this)->computeEquilibriumForInit(
 			k, rho_val, u);
 	}
 
-	const std::array<double, LATTICE::DIM>& getVelocityAtIndex(int idx) const {
+	const std::array<double, LATTICE::DIM>& getVelocityAtIndex(size_t idx) const {
 		return static_cast<const Derived*>(this)->getVelocityAtIndex(idx);
 	}
 
-	const double getRhoAtIndex(int idx) const {
+	const double getRhoAtIndex(size_t idx) const {
 		return static_cast<const Derived*>(this)->getRhoAtIndex(idx);
 	}
 };
@@ -303,15 +127,18 @@ class Models {
 // Standard LBM implementation inheriting from Models using CRTP
 template <LatticeType LATTICE>
 class LBM : public Models<LBM<LATTICE>, LATTICE> {
-	// template <int DIM, int Q>
  private:
-	static constexpr int DIM = LATTICE::DIM;
-	static constexpr int Q = LATTICE::Q;
+	// todo: make these short or uint_8t
+	static constexpr size_t DIM = LATTICE::DIM;
+	static constexpr size_t Q = LATTICE::Q;
 
-	std::array<int, DIM> domain_size;
-	int total_nodes;
+	std::array<size_t, DIM> domain_size;
+
+	std::unique_ptr<Mesh<LATTICE::DIM, LATTICE>> mesh;
+
+	size_t total_nodes;
 	double tau, nu;
-	int current_step;
+	size_t current_step;
 	double current_time;
 	double dt;
 
@@ -321,56 +148,17 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 	std::vector<double> f, f_new, rho;
 	std::vector<std::array<double, DIM>> velocity;
 	std::vector<double> vorticity;
-
 	// Note: In 3D, vorticity would be a vector field
 
-	// todo: precompute and store as an unordered map perhaps. or an ordered one whichever is better.
-	// then O(1) lookup at runtime.
-	// inline Helper function to convert multi-dimensional position to flat index
-	int getNodeIndex(const std::array<int, DIM>& pos) const {
-		int index = 0;
-		for (int stride = 1, d = 0; d < DIM; ++d) {
-			index += pos[d] * stride;
-			stride *= domain_size[d];
-		}
-		return index;
-	}
-
-	// TODO: AoS or SoA : which is better?
-	// inline Helper function to get distribution function index
-	int getDistIndex(const int q, const std::array<int, DIM>& pos) const {
-		// [AoS] // !!! stride with q =>  1
-		// p1f1 p1f2 p1f3 ... p1fQ, p2f1 p2f2 p2f3 ... p2fQ, ... => P1(f1,f2,f3,...,fQ), P2(f1,f2,f3,...,fQ), ...
-		return getNodeIndex(pos) * Q + q;
-
-		// for collision (equilibrium calc): AoS is better, since we need all f_i sequentially for each node
-
-		// [SoA] 	// !!! stride with q => total_nodes
-		// p1f1 p2f1 p3f1 ... p(total_nodes)f1, p1f2 p2f2 p3f2 ... p(total_nodes)f2, ... =>
-		// return q * total_nodes + getNodeIndex(pos);
-		// for streaming: SoA is better, since we need neighbouring nodes for each f_i
-	}
-
-	// todo: precompute at initialisation and store in an array.
-	//  inline Convert flat index back to multi-dimensional position
-	std::array<int, DIM> getPosition(int flat_index) const {
-		std::array<int, DIM> pos;
-		for (int d = 0; d < DIM; ++d) {
-			pos[d] = flat_index % domain_size[d];
-			flat_index /= domain_size[d];
-		}
-		return pos;	 // todo: NRVO using std::move
-	}
-
  private:
-	double computeEquilibrium(int k, double rho_val,
+	double computeEquilibrium(size_t k, double rho_val,
 														const std::array<double, DIM>& u_vel) const {
 		const auto& v = LATTICE::velocities;
 		const auto& w = LATTICE::weights;
 
 		double cu = 0.0;
 		double usqr = 0.0;
-		for (int d = 0; d < DIM; ++d) {
+		for (size_t d = 0; d < DIM; ++d) {
 			size_t cIdx = k + d * Q;	// !!! cache : strided access
 			cu += v[cIdx] * u_vel[d];
 			// cu += v[k][d] * u[d];
@@ -382,23 +170,23 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 	void computeMacroscopic() {
 		const auto& v = LATTICE::velocities;
 #pragma omp parallel for
-		for (int i = 0; i < total_nodes; ++i) {
+		for (size_t i = 0; i < mesh->total_nodes; ++i) {
 			// reset
 			double rho_acc = 0.0;
 			std::array<double, DIM> u_acc{};
 
 			// sum over directions
-			for (int k = 0; k < Q; ++k) {
+			for (size_t k = 0; k < Q; ++k) {
 				// [SoA]
-				// int idx = k * total_nodes + i; //!!! change access pattern as above in getDistIndex()
+				// size_t idx = k * total_nodes + i; //!!! change access pattern as above in getDistIndex()
 
 				// [AoS]
-				int idx = k + i * Q;	// stride over k = 1
+				size_t idx = k + i * Q;	 // stride over k = 1
 				// here prefer to have sequential access in k (over populations)
 
 				double fk = this->f[idx];
 				rho_acc += fk;
-				for (int d = 0; d < DIM; ++d) {
+				for (size_t d = 0; d < DIM; ++d) {
 					size_t cIdx = k + d * Q;
 					u_acc[d] += v[cIdx] * fk;
 					// u_acc[d] += v[k][d] * fk;
@@ -407,7 +195,7 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 			// normalize
 			rho[i] = rho_acc;
 			if (rho_acc > 0.0) {
-				for (int d = 0; d < DIM; ++d)
+				for (size_t d = 0; d < DIM; ++d)
 					velocity[i][d] = u_acc[d] / rho_acc;
 			} else [[unlikely]] {
 				// /!!! todo: throw error here, rho <= 0 is not physical behaviour
@@ -419,14 +207,14 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 
 	void collide() {
 #pragma omp parallel for
-		for (int i = 0; i < total_nodes; ++i) {
-			for (int k = 0; k < Q; ++k) {
+		for (size_t i = 0; i < mesh->total_nodes; ++i) {
+			for (size_t k = 0; k < Q; ++k) {
 				// [AoS] // stride over k = 1
-				int idx = k + i * Q;
+				size_t idx = k + i * Q;
 				//!!! access pattern: [p0] 0, 1, 2, ... Q-1, [p1] 0, 1, 2, ... Q-1, [p2] 0, 1, 2, ... Q-1, ...
 
 				// [SoA]
-				// int idx = k * total_nodes + i;  [SoA]
+				// size_t idx = k * total_nodes + i;  [SoA]
 				//!!! ^^^ results in non-sequential access: 0,total_nodes,2*total_nodes,...,1,1+total_nodes,1+2*total_nodes...,2,...
 
 				double feq = computeEquilibrium(k, rho[i], velocity[i]);
@@ -436,29 +224,29 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 	}
 
 	void stream() {
-
 		const auto& v = LATTICE::velocities;
 // stream each population along its direction
 #pragma omp parallel for
-		for (int i = 0; i < total_nodes; ++i) {
-			auto pos = getPosition(i);
-			for (int k = 0; k < Q; ++k) {
+		for (size_t i = 0; i < mesh->total_nodes; ++i) {
+			// auto pos = mesh->nodes[i];
+			for (size_t k = 0; k < Q; ++k) {
 				// !!! todo:  precompute neighbours or pointers to neighbours possible? instead of computing at runtime
-				std::array<int, DIM> npos;
-				for (int d = 0; d < DIM; ++d) {
-					// applies the periodic boundary conditions, wraps at the domain boundary
-					size_t cIdx = k + d * Q;
-					npos[d] = (pos[d] + v[cIdx] + domain_size[d]) % domain_size[d];
-					// npos[d] = (pos[d] + v[k][d] + lattice_size[d]) % lattice_size[d];
-				}
+				// std::array<int, DIM> npos; // todo: check for negatives at the boundary.
+				// for (size_t d = 0; d < DIM; ++d) {
+				// 	// applies the periodic boundary conditions, wraps at the domain boundary
+				// 	size_t cIdx = k + d * Q;
+				// 	npos[d] = (pos[d] + v[cIdx] + domain_size[d]) % domain_size[d];
+				// 	// npos[d] = (pos[d] + v[k][d] + lattice_size[d]) % lattice_size[d];
+				// }
 
 				// [AoS]
-				int dst = k + getNodeIndex(npos) * Q;
-				int src = k + i * Q;
+				size_t dst =
+					mesh->neighbour_index[i][k];	// k + mesh->getNodeIndex(npos) * Q;
+				size_t src = k + i * Q;
 
 				// [SoA]
-				// int dst = k * total_nodes + getNodeIndex(npos);
-				// int src = k * total_nodes + i;
+				// size_t dst = k * total_nodes + mesh->getNodeIndex(npos);
+				// size_t src = k * total_nodes + i;
 
 				f[dst] = f_new[src];
 				// todo: replace with inplace streaming,
@@ -469,7 +257,7 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 	}
 
  public:
-	LBM(const std::array<int, DIM>& size, double viscosity)
+	LBM(const std::array<size_t, DIM>& size, double viscosity)
 			: domain_size(size),
 				nu(viscosity),
 				current_step(0),
@@ -485,19 +273,22 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 
 		// Calculate total number of nodes
 		total_nodes = 1;
-		for (int d = 0; d < DIM; ++d) {
+		for (size_t d = 0; d < DIM; ++d) {
 			total_nodes *= domain_size[d];
 		}
 
+		mesh = std::make_unique<Mesh<LATTICE::DIM, LATTICE>>(domain_size);
+		// mesh->writeToFile();
+
 		// Initialize storage
-		f.resize(Q * total_nodes);
-		f_new.resize(Q * total_nodes);
-		rho.resize(total_nodes);
-		velocity.resize(total_nodes);
-		vorticity.resize(total_nodes);
+		f.resize(Q * mesh->total_nodes);
+		f_new.resize(Q * mesh->total_nodes);
+		rho.resize(mesh->total_nodes);
+		velocity.resize(mesh->total_nodes);
+		vorticity.resize(mesh->total_nodes);
 
 		std::cout << "Initialized " << LATTICE::getName() << " LBM with "
-							<< total_nodes << " nodes" << std::endl;
+							<< mesh->total_nodes << " nodes" << std::endl;
 	}
 
 	// todo: should also ideally call the setup->init() function here
@@ -512,27 +303,27 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 		/**
 		 *  computeMacroscopic();
 		*/
-		const auto v = LATTICE::velocities;
-		const auto w = LATTICE::weights;
+		const auto& v = LATTICE::velocities;
+		const auto& w = LATTICE::weights;
 
 #pragma omp parallel for
-		for (int i = 0; i < total_nodes; ++i) {
+		for (size_t i = 0; i < mesh->total_nodes; ++i) {
 			// reset
 			double rho_acc = 0.0;
 			std::array<double, DIM> u_acc{};
 
 			// sum over directions
-			for (int k = 0; k < Q; ++k) {
+			for (size_t k = 0; k < Q; ++k) {
 				// [SoA]
-				// int idx = k * total_nodes + i; //!!! change access pattern as above in getDistIndex()
+				// size_t idx = k * total_nodes + i; //!!! change access pattern as above in getDistIndex()
 
 				// [AoS]
-				int idx = k + i * Q;	// stride over k = 1
+				size_t idx = k + i * Q;	 // stride over k = 1
 				// here prefer to have sequential access in k (over populations)
 
 				double fk = this->f[idx];
 				rho_acc += fk;
-				for (int d = 0; d < DIM; ++d) {
+				for (size_t d = 0; d < DIM; ++d) {
 					size_t cIdx = k + d * Q;
 					u_acc[d] += v[cIdx] * fk;
 					// u_acc[d] += v[k][d] * fk;
@@ -541,7 +332,7 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 			// normalize
 			rho[i] = rho_acc;
 			if (rho_acc > 0.0) {
-				for (int d = 0; d < DIM; ++d)
+				for (size_t d = 0; d < DIM; ++d)
 					velocity[i][d] = u_acc[d] / rho_acc;
 			} else [[unlikely]] {
 				// /!!! todo: throw error here, rho <= 0 is not physical behaviour
@@ -557,21 +348,20 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 		 * collide();
 		*/
 #pragma omp parallel for
-		for (int i = 0; i < total_nodes; ++i) {
+		for (size_t i = 0; i < mesh->total_nodes; ++i) {
 
-			// std::array<int,DIM> usqr{0.};
 			double usqr{0.};
 			for (size_t d = 0; d < DIM; ++d) {	// dot(u,u)
 				usqr += velocity[i][d] * velocity[i][d];
 			}
 
-			for (int k = 0; k < Q; ++k) {
+			for (size_t k = 0; k < Q; ++k) {
 				// [AoS] // stride over k = 1
-				int idx = k + i * Q;
+				size_t idx = k + i * Q;
 				//!!! access pattern: [p0] 0, 1, 2, ... Q-1, [p1] 0, 1, 2, ... Q-1, [p2] 0, 1, 2, ... Q-1, ...
 
 				// [SoA]
-				// int idx = k * total_nodes + i;  [SoA]
+				// size_t idx = k * total_nodes + i;  [SoA]
 				//!!! ^^^ results in non-sequential access: 0,total_nodes,2*total_nodes,...,1,1+total_nodes,1+2*total_nodes...,2,...
 
 				// double feq = computeEquilibrium(k, rho[i], velocity[i]);
@@ -583,7 +373,7 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 
 				double cu = 0.0;
 				// double usqr = 0.0;
-				for (int d = 0; d < DIM; ++d) {
+				for (size_t d = 0; d < DIM; ++d) {
 					size_t cIdx = k + d * Q;	// !!! cache : strided access
 					cu += v[cIdx] * velocity[i][d];
 					// cu += v[k][d] * u[d];
@@ -609,27 +399,27 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 		// const auto& v = LATTICE::velocities;
 // stream each population along its direction
 #pragma omp parallel for
-		for (int i = 0; i < total_nodes; ++i) {
-			auto pos = getPosition(i);	// precompute
-			for (int k = 0; k < Q; ++k) {
+		for (size_t i = 0; i < mesh->total_nodes; ++i) {
+			// auto pos = mesh->nodes[i];	// precompute
+			for (size_t k = 0; k < Q; ++k) {
 				// !!! todo:  precompute neighbours or pointers to neighbours possible? instead of computing at runtime
-				std::array<int, DIM> npos;
-				for (int d = 0; d < DIM;
-						 ++d) {	 // precompute this loop, avoid the math inside.
-					// applies the periodic boundary conditions, wraps at the domain boundary
-					size_t cIdx = k + d * Q;
-					npos[d] = (pos[d] + v[cIdx] + domain_size[d]) % domain_size[d];
-					// npos[d] = (pos[d] + v[k][d] + lattice_size[d]) % lattice_size[d];
-				}
+				// std::array<size_t, DIM> npos; // todo: check for negative at boundary if not periodic bc
+				// for (size_t d = 0; d < DIM;
+				// 		 ++d) {	 // precompute this loop, avoid the math inside.
+				// 	// applies the periodic boundary conditions, wraps at the domain boundary
+				// 	size_t cIdx = k + d * Q;
+				// 	npos[d] = (pos[d] + v[cIdx] + domain_size[d]) % domain_size[d];
+				// 	// npos[d] = (pos[d] + v[k][d] + lattice_size[d]) % lattice_size[d];
+				// }
 
 				// [AoS]
-				int dst = k + getNodeIndex(npos) *
-												Q;	//todo: preocompute the flat index to vector mapping
-				int src = k + i * Q;
+				size_t dst =
+					mesh->neighbour_index[i][k];	// k + mesh->getNodeIndex(npos) * Q;
+				size_t src = k + i * Q;
 
 				// [SoA]
-				// int dst = k * total_nodes + getNodeIndex(npos);
-				// int src = k * total_nodes + i;
+				// size_t dst = k * total_nodes + mesh->getNodeIndex(npos);
+				// size_t src = k * total_nodes + i;
 
 				f[dst] = f_new[src];
 				// todo: replace with inplace streaming,
@@ -650,21 +440,23 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 									"Vorticity computation currently only implemented for 2D");
 
 #pragma omp parallel for
-		for (int i = 0; i < total_nodes; ++i) {
-			auto pos = getPosition(i);
+		for (size_t i = 0; i < mesh->total_nodes; ++i) {
+			auto pos = mesh->nodes[i];
 
+			// todo: check for negatives at boundary
 			// Neighbor positions with periodic boundaries
-			std::array<int, 2> pos_xp = {(pos[0] + 1) % domain_size[0], pos[1]};
-			std::array<int, 2> pos_xm = {
+			// replace with mesh->nodes[mesh->neighbour_index[i][1,2,3,4]]
+			std::array<size_t, 2> pos_xp = {(pos[0] + 1) % domain_size[0], pos[1]};
+			std::array<size_t, 2> pos_xm = {
 				(pos[0] - 1 + domain_size[0]) % domain_size[0], pos[1]};
-			std::array<int, 2> pos_yp = {pos[0], (pos[1] + 1) % domain_size[1]};
-			std::array<int, 2> pos_ym = {
+			std::array<size_t, 2> pos_yp = {pos[0], (pos[1] + 1) % domain_size[1]};
+			std::array<size_t, 2> pos_ym = {
 				pos[0], (pos[1] - 1 + domain_size[1]) % domain_size[1]};
 
-			int idx_xp = getNodeIndex(pos_xp);
-			int idx_xm = getNodeIndex(pos_xm);
-			int idx_yp = getNodeIndex(pos_yp);
-			int idx_ym = getNodeIndex(pos_ym);
+			size_t idx_xp = mesh->getNodeIndex(pos_xp);
+			size_t idx_xm = mesh->getNodeIndex(pos_xm);
+			size_t idx_yp = mesh->getNodeIndex(pos_yp);
+			size_t idx_ym = mesh->getNodeIndex(pos_ym);
 
 			// Compute derivatives using central differences
 			double duydx = (velocity[idx_xp][1] - velocity[idx_xm][1]) * 0.5;
@@ -679,13 +471,13 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 		static_assert(DIM == 2, "File output currently only implemented for 2D");
 
 		std::ofstream outFile(filename);
-		for (int y = 0; y < domain_size[1]; ++y) {
-			for (int x = 0; x < domain_size[0]; ++x) {
-				std::array<int, 2> pos = {x, y};
-				int idx = getNodeIndex(pos);
+		for (size_t y = 0; y < domain_size[1]; ++y) {
+			for (size_t x = 0; x < domain_size[0]; ++x) {
+				std::array<size_t, 2> pos = {x, y};
+				size_t idx = mesh->getNodeIndex(pos);
 
 				double vel_mag = 0.0;
-				for (int d = 0; d < DIM; ++d) {
+				for (size_t d = 0; d < DIM; ++d) {
 					vel_mag += velocity[idx][d] * velocity[idx][d];
 				}
 				vel_mag = std::sqrt(vel_mag);
@@ -697,7 +489,7 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 		outFile.close();
 	}
 
-	void saveVelocitySlice2D(const int slice_location, const int slice_axis,
+	void saveVelocitySlice2D(const size_t slice_location, const size_t slice_axis,
 													 const std::string& filename) {
 
 		if (slice_axis < 0 || slice_axis > 2) [[unlikely]] {
@@ -705,16 +497,16 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 			return;
 		}
 		std::ofstream outFile(filename);
-		std::array<int, 2> pos = {};
+		std::array<size_t, 2> pos = {};
 
 		if (slice_axis == 0) {
 			pos[1] = slice_location;
 		} else
 			pos[0] = slice_location;
 
-		for (int xi = 0; xi < domain_size[slice_axis]; ++xi) {
+		for (size_t xi = 0; xi < domain_size[slice_axis]; ++xi) {
 			pos[slice_axis] = xi;
-			int idx = getNodeIndex(pos);
+			size_t idx = mesh->getNodeIndex(pos);
 
 			// save both components of velocity
 			double normal_pos =
@@ -731,10 +523,10 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 		static_assert(DIM == 2, "File output currently only implemented for 2D");
 
 		std::ofstream outFile(filename);
-		for (int y = 0; y < domain_size[1]; ++y) {
-			for (int x = 0; x < domain_size[0]; ++x) {
-				std::array<int, 2> pos = {x, y};
-				int idx = getNodeIndex(pos);
+		for (size_t y = 0; y < domain_size[1]; ++y) {
+			for (size_t x = 0; x < domain_size[0]; ++x) {
+				std::array<size_t, 2> pos = {x, y};
+				size_t idx = mesh->getNodeIndex(pos);
 				outFile << vorticity[idx] << " ";
 			}
 			outFile << "\n";
@@ -746,7 +538,7 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 		return "Standard LBM (" + LATTICE::getName() + ")";
 	}
 
-	int getCurrentStep() const { return current_step; }
+	size_t getCurrentStep() const { return current_step; }
 
 	double getCurrentTime() const { return current_time; }
 
@@ -765,32 +557,32 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 	double getRelaxationTime() const { return tau; }
 
 	// Initialization helpers for external setups
-	int getTotalNodes() const { return total_nodes; }
+	size_t getTotalNodes() const { return mesh->total_nodes; }
 
-	int getQ() const { return Q; }
+	size_t getQ() const { return Q; }
 
 	double getLatticeSpeedofSound() const { return LATTICE::Cs; }
 
-	std::array<int, DIM> getLatticeSize() const { return domain_size; }
+	std::array<size_t, DIM> getLatticeSize() const { return domain_size; }
 
-	std::array<int, DIM> getPositionFromIndex(int flat_index) const {
-		return getPosition(flat_index);
+	std::array<size_t, DIM> getPositionFromIndex(size_t flat_index) const {
+		return mesh->nodes[flat_index];
 	}
 
 	// class member functions are default inline
-	void setRhoAtIndex(int idx, double rho_val) { rho[idx] = rho_val; }
+	void setRhoAtIndex(size_t idx, double rho_val) { rho[idx] = rho_val; }
 
-	const double getRhoAtIndex(int idx) const { return rho[idx]; }
+	const double getRhoAtIndex(size_t idx) const { return rho[idx]; }
 
-	const std::array<double, DIM>& getVelocityAtIndex(int idx) const {
+	const std::array<double, DIM>& getVelocityAtIndex(size_t idx) const {
 		return velocity[idx];
 	}
 
-	void setVelocityAtIndex(int idx, const std::array<double, DIM>& u) {
+	void setVelocityAtIndex(size_t idx, const std::array<double, DIM>& u) {
 		velocity[idx] = u;
 	}
 
-	void setFAt(int k, int idx, double value) {
+	void setFAt(size_t k, size_t idx, double value) {
 		// [SoA]
 		// f[k * total_nodes + idx] = value;
 
@@ -798,14 +590,42 @@ class LBM : public Models<LBM<LATTICE>, LATTICE> {
 		f[k + (Q * idx)] = value;
 	}
 
-	double computeEquilibriumForInit(int k, double rho_val,
+	// todo: precompute and store as an unordered map perhaps. or an ordered one whichever is better.
+	// then O(1) lookup at runtime.
+	// inline Helper function to convert multi-dimensional position to flat index
+	// !!! moved to mesh.h
+	// size_t getNodeIndex(std::array<size_t, DIM> pos) const {
+	// 	size_t index = 0;
+	// 	for (size_t stride = 1, d = 0; d < DIM; ++d) {
+	// 		index += pos[d] * stride;
+	// 		stride *= domain_size[d];
+	// 	}
+	// 	return index;
+	// }
+
+	// TODO: AoS or SoA : which is better?
+	// inline Helper function to get distribution function index
+	size_t getDistIndex(size_t q, std::array<size_t, DIM> pos) const {
+		// [AoS] // !!! stride with q =>  1
+		// p1f1 p1f2 p1f3 ... p1fQ, p2f1 p2f2 p2f3 ... p2fQ, ... => P1(f1,f2,f3,...,fQ), P2(f1,f2,f3,...,fQ), ...
+		return mesh->getNodeIndex(pos) * Q + q;
+
+		// for collision (equilibrium calc): AoS is better, since we need all f_i sequentially for each node
+
+		// [SoA] 	// !!! stride with q => total_nodes
+		// p1f1 p2f1 p3f1 ... p(total_nodes)f1, p1f2 p2f2 p3f2 ... p(total_nodes)f2, ... =>
+		// return q * total_nodes + mesh->getNodeIndex(pos);
+		// for streaming: SoA is better, since we need neighbouring nodes for each f_i
+	}
+
+	double computeEquilibriumForInit(size_t k, double rho_val,
 																	 const std::array<double, DIM>& u) const {
 		return computeEquilibrium(k, rho_val, u);
 	}
 };
 
 // todo: need class members, initial values of macro quantities etc, useful for calculations later.
-//!!! todo!!! maybe should derive from the model and not have it as a member.
+//!!! maybe should derive from the model and not have it as a member.
 //!!! that simplifies the initialisation.
 template <typename Derived, typename ModelType>
 class Setups {
@@ -837,17 +657,16 @@ class TaylorGreenVortex
 	}
 
 	void initialize() {
-		const auto size =
-			model.getLatticeSize();	 // !!! assert that size[0] == size[1] == size[2]
-		const int total = model.getTotalNodes();
-		const int Q = model.getQ();
+		const auto size = model.getLatticeSize();
+		const size_t total = model.getTotalNodes();
+		const size_t Q = model.getQ();
 		// set-up from Kallikounis Thesis : Re= 50 = [u0*L/nu]
 		double rho0 = 1.;	 // valid for standard LB
 		double u0 = 0.0287;
 		float reynolds = 50;
 		model.setViscosity(u0 * size[0] / reynolds);	// kinematic viscosity
 		std::cout << " Viscosity Set : nu = " << model.getViscosity() << std::endl;
-		for (int i = 0; i < total; ++i) {
+		for (size_t i = 0; i < total; ++i) {
 			auto pos = model.getPositionFromIndex(i);
 			double x_pos = static_cast<double>(pos[0]) / (size[0] - 1);
 			double y_pos = static_cast<double>(pos[1]) / (size[1] - 1);
@@ -860,7 +679,7 @@ class TaylorGreenVortex
 																(cos(2 * M_PI * x_pos) + cos(2 * M_PI * y_pos));
 			model.setRhoAtIndex(i, density);
 
-			for (int k = 0; k < Q; ++k) {
+			for (size_t k = 0; k < Q; ++k) {
 				double feq = model.computeEquilibriumForInit(k, density, u);
 				model.setFAt(k, i, feq);
 			}
@@ -870,11 +689,11 @@ class TaylorGreenVortex
 	void compute_error(double time) {
 
 		// exact solution
-		const int total_nodes = model.getTotalNodes();
+		const size_t total_nodes = model.getTotalNodes();
 		const auto size = model.getLatticeSize();
 
 		// also compute a 2D slice along x-axis at the middle-ish plane.
-		int slice_y = static_cast<int>(size[0] / 2);
+		size_t slice_y = static_cast<int>(size[0] / 2);
 		const std::string filename_slice =
 			"slice2D" + std::to_string(slice_y) + "_" +
 			std::to_string(static_cast<int>(time)) + ".dat";
@@ -900,7 +719,7 @@ class TaylorGreenVortex
 		double slice_ux_exact_runner{0.}, slice_uy_exact_runner{0.};
 		double L2_err_ux_slice{0.}, L2_err_uy_slice{0.};
 
-		for (int i = 0; i < total_nodes; ++i) {
+		for (size_t i = 0; i < total_nodes; ++i) {
 			auto u_lbm = model.getVelocityAtIndex(i);
 			double ux_exact{0.}, uy_exact{0.};
 			double p_exact{0.};
@@ -926,10 +745,8 @@ class TaylorGreenVortex
 
 			// calculate L2 vel error over slice
 			if (pos[1] == slice_y) {
-				slice_ux_sq_err_runner +=
-					local_ux_sq_err;	// std::pow(ux_exact - u_lbm[0], 2);
-				slice_uy_sq_err_runner +=
-					local_uy_sq_err;	// std::pow(uy_exact - u_lbm[1], 2);
+				slice_ux_sq_err_runner += local_ux_sq_err;
+				slice_uy_sq_err_runner += local_uy_sq_err;
 				slice_ux_exact_runner += ux_exact_sq;
 				slice_uy_exact_runner += uy_exact_sq;
 
@@ -938,14 +755,13 @@ class TaylorGreenVortex
 					static_cast<double>(pos[0]) / static_cast<double>(size[0] - 1);
 				ofile_slice << normal_pos << '\t' << ux_exact << ' ' << u_lbm[0] << '\t'
 										<< uy_exact << ' ' << u_lbm[1] << std::endl;
-				// ofile_slice << uy_exact << " " << normal_pos << std::endl;
 			}
 
 			ux_exact_runner += ux_exact_sq;
 			uy_exact_runner += uy_exact_sq;
 
-			ux_sq_err_runner += local_ux_sq_err;	// std::pow(ux_exact - u_lbm[0], 2);
-			uy_sq_err_runner += local_uy_sq_err;	// std::pow(uy_exact - u_lbm[1], 2);
+			ux_sq_err_runner += local_ux_sq_err;
+			uy_sq_err_runner += local_uy_sq_err;
 		}
 
 		L2_err_ux_total = std::sqrt(ux_sq_err_runner / ux_exact_runner);
@@ -954,7 +770,6 @@ class TaylorGreenVortex
 		L2_err_ux_slice = std::sqrt(slice_ux_sq_err_runner / slice_ux_exact_runner);
 		L2_err_uy_slice = std::sqrt(slice_uy_sq_err_runner / slice_uy_exact_runner);
 
-		// // plot x-slice at y=slice_y
 		// model.saveVelocitySlice2D(
 		// 	(slice_y), 0, "vel_slice_y=" + std::to_string(slice_y) + ".txt");
 
@@ -981,9 +796,9 @@ class DoublePeriodicShearLayer
 
 	void initialize() {
 		const auto size = model.getLatticeSize();
-		const int total = model.getTotalNodes();
-		const int Q = model.getQ();
-		for (int i = 0; i < total; ++i) {
+		const size_t total = model.getTotalNodes();
+		const size_t Q = model.getQ();
+		for (size_t i = 0; i < total; ++i) {
 			auto pos = model.getPositionFromIndex(i);
 			double x_pos = static_cast<double>(pos[0]) / (size[0] - 1);
 			double y_pos = static_cast<double>(pos[1]) / (size[1] - 1);
@@ -995,8 +810,8 @@ class DoublePeriodicShearLayer
 			double perturbation = 0.05 * u0;
 			double lambda = 80;	 // 20;
 			float reynolds = 30000;
-			// only stable ish for size 200x200.
-			// Blows up at 160x160
+			// NOTE: only stable ish for size 200x200.
+			// NOTE: Blows up at 160x160
 			// !!! need entropic etc for higher reynolds numbers.
 			model.setViscosity(u0 * size[0] / reynolds);
 			if (y_pos <= 0.5) {
@@ -1008,7 +823,7 @@ class DoublePeriodicShearLayer
 
 			model.setVelocityAtIndex(i, u);
 			model.setRhoAtIndex(i, 1.0);
-			for (int k = 0; k < Q; ++k) {
+			for (size_t k = 0; k < Q; ++k) {
 				double feq = model.computeEquilibriumForInit(k, 1.0, u);
 				model.setFAt(k, i, feq);
 			}
@@ -1024,8 +839,7 @@ int main() {
 	// Create output directory
 	std::string result_directory_name = "lbm_ai";
 	std::filesystem::path dir(result_directory_name);
-	if (!std::filesystem::exists(
-				dir)) {	 // check if directory exists, if yes, do nothing
+	if (!std::filesystem::exists(dir)) {
 		if (std::filesystem::create_directory(dir)) {	 // default permissions
 			std::cout << " Results directory created : " << dir << std::endl;
 		} else {
@@ -1045,21 +859,17 @@ int main() {
 	constexpr size_t SAVE_INTERVAL = 1250;
 
 	// constexpr size_t NSTEPS = 6000;
-	constexpr int checkpoint = 50 * scale;
+	constexpr size_t checkpoint = 50 * scale;
 	constexpr size_t NSTEPS = checkpoint + 1;
 
-	std::array<int, DIM> domain_size = {LX, LY};
+	std::array<size_t, DIM> domain_size = {LX, LY};
 
 	//!!! todo: make it so that the viscosity is set by the setup, currently confusing
 	constexpr double visc = 0.01;	 // can be overridden by the setup
 
-	// Use abstract Models interface with lattice
-	// std::unique_ptr<Models<DIM>> model =
-	// 	std::make_unique<LBM<D2Q9>>(lattice_size, visc);
+	// Instantiate specific model
 
 	// typedef typename LBM<D2Q9>> model_type;
-
-	// Instantiate specific model
 	auto model = std::make_unique<LBM<D2Q9>>(domain_size, visc);
 
 	// Initialize the model :
@@ -1068,19 +878,23 @@ int main() {
 	// !!! very strange way of doing things?
 	// !!! we locally initialize the model by instantiating a setup object USING the model
 	// shouldnt we probably use the setup class to initialize the model instead
-	// Choose setup and initialize
-	int test_case = 1;	// 1: Taylor-Green, 2: Double Periodic Shear Layer
-											// if (test_case == 1) {
-	std::cout << "Initializing Taylor-Green Vortex..." << std::endl;
 
+	// Choose setup and initialize
+	int test_case = 1;	// Taylor-Green Vortex
+	// if (test_case == 1) {
+	std::cout << "Initializing Taylor-Green Vortex..." << std::endl;
 	TaylorGreenVortex<LBM<D2Q9>, D2Q9> setup(*model);
-	// } else {
+	// } 
+	// else 
+	// {
+	// int test_case = 2;  Double Periodic Shear Layer
 	// 	std::cout << "Initializing Double Periodic Shear Layer..." << std::endl;
 	// DoublePeriodicShearLayer<LBM<D2Q9>, D2Q9> setup(*model);
-
+	// }
+	
 	// Mass Conservation Check // cover with if-def DEBUG block
 	double initial_mass = 0.;
-	for (int i = 0; i < model->getTotalNodes(); ++i) {
+	for (size_t i = 0; i < model->getTotalNodes(); ++i) {
 		initial_mass += model->getRhoAtIndex(i);
 	}
 	// Mass Conservation Check // cover with if-def DEBUG block
@@ -1094,7 +908,6 @@ int main() {
 
 		model->step();
 
-		// Save fields every SAVE_INTERVAL steps
 		if (SAVE_FILE && (step % SAVE_INTERVAL == 0)) {
 			model->saveVelocityField(result_directory_name + "/velocity_" +
 															 std::to_string(step) + ".txt");
@@ -1121,10 +934,9 @@ int main() {
 
 	// Mass Conservation Check // cover with if-def DEBUG block
 	double final_mass = 0.;
-	for (int i = 0; i < model->getTotalNodes(); ++i) {
+	for (size_t i = 0; i < model->getTotalNodes(); ++i) {
 		final_mass += model->getRhoAtIndex(i);
 	}
-
 	std::cout << "Mass Conservation Check. Initial Mass = " << initial_mass
 						<< std::endl;
 	std::cout << "Mass Conservation Check. Total Mass = " << final_mass
