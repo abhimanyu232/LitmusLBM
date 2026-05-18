@@ -1,5 +1,6 @@
 *.txt
 *.dat
+*.data
 *.csv
 *.json
 *.xml
@@ -13,6 +14,7 @@
 
 *.png   
 
+
 plots/
 plots/*
 
@@ -25,6 +27,9 @@ optimize_comparison_bins/*
 
 *.kilo
 *.specstory
+*.local
+
+session*
 
 *.x
 

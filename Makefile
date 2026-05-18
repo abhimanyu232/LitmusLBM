@@ -23,7 +23,7 @@ run: $(TARGET)
 	./$(TARGET)
 
 visualize:
-	python3 visualize_lbm.py
+	python3 viz/visualize_lbm.py
 
 clean:
 	rm -f $(TARGET)
