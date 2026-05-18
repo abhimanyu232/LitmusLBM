@@ -4,9 +4,9 @@
 #include <cassert>
 
 #include <algorithm>
+#include <array>
 #include <memory>
 #include <vector>
-#include <array>
 
 // filesystem and io
 #include <fstream>
@@ -20,33 +20,39 @@
 #include <type_traits>
 
 // commmon math functions
+#include <cmath>
 #include <cstdlib>
 #include <numbers>
-#include <cmath>
 
 // std time
 #include <chrono>
 
 //!!! todo: integrate to easily switch precision and save memory
 // type aliases for floating point and index types
-using fp_t = double; 
-using index_t = uint32_t;
+using float_type = double;
+using index_type = uint32_t;
+
+// user-defined literal for specifying float_type 
+constexpr float_type operator""_fp(long double v) noexcept {
+    return static_cast<float_type>(v);
+}
+
 
 // some mathematical constants
-constexpr double PI = std::numbers::pi_v<double>;
-constexpr double INV_PI = std::numbers::inv_pi_v<double>;
-constexpr double INV_SQRT_PI = std::numbers::inv_sqrtpi_v<double>;
+constexpr float_type PI = std::numbers::pi_v<float_type>;
+constexpr float_type INV_PI = std::numbers::inv_pi_v<float_type>;
+constexpr float_type INV_SQRT_PI = std::numbers::inv_sqrtpi_v<float_type>;
 
-constexpr double SQRT_2 = std::numbers::sqrt2_v<double>;
+constexpr float_type SQRT_2 = std::numbers::sqrt2_v<float_type>;
 
-constexpr double SQRT_3 = std::numbers::sqrt3_v<double>;
-constexpr double INV_SQRT_3 = std::numbers::inv_sqrt3_v<double>;
+constexpr float_type SQRT_3 = std::numbers::sqrt3_v<float_type>;
+constexpr float_type INV_SQRT_3 = std::numbers::inv_sqrt3_v<float_type>;
 
-constexpr double LOG10_E = std::numbers::log10e_v<double>;
-constexpr double LOG2_E = std::numbers::log2e_v<double>;
+constexpr float_type LOG10_E = std::numbers::log10e_v<float_type>;
+constexpr float_type LOG2_E = std::numbers::log2e_v<float_type>;
 
-constexpr double LN_2 = std::numbers::ln2_v<double>;
-constexpr double LN_10 = std::numbers::ln10_v<double>;
+constexpr float_type LN_2 = std::numbers::ln2_v<float_type>;
+constexpr float_type LN_10 = std::numbers::ln10_v<float_type>;
 
 // basic timer interface
 namespace timer {
@@ -63,6 +69,5 @@ inline FloatTimePoint GetCurrentTime() {
 	return Time::now();
 }
 }	 // namespace timer
-
 
 #endif

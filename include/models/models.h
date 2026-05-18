@@ -4,6 +4,7 @@
 
 #include "../lattices.h"
 
+// CRTP base class for simulation models
 template <typename Derived, LatticeType LATTICE>
 class Models {
  public:
@@ -24,7 +25,8 @@ class Models {
 		static_cast<Derived*>(this)->saveVorticityField(filename);
 	}
 
-	void saveVelocitySlice2D(int index, int axis, const std::string& filename) {
+	void saveVelocitySlice2D(index_type index, index_type axis,
+													 const std::string& filename) {
 		static_cast<Derived*>(this)->saveVelocitySlice2D(index, axis, filename);
 	};
 
@@ -33,7 +35,7 @@ class Models {
 		return static_cast<const Derived*>(this)->getModelName();
 	}
 
-	int getCurrentStep() const {
+	size_t getCurrentStep() const {
 		return static_cast<const Derived*>(this)->getCurrentStep();
 	}
 
@@ -42,63 +44,66 @@ class Models {
 	}
 
 	// Configuration functions
-	void setViscosity(double nu) {
+	void setViscosity(float_type nu) {
 		static_cast<Derived*>(this)->setViscosity(nu);
 	}
 
-	void setRelaxationTime(double tau) {
+	void setRelaxationTime(float_type tau) {
 		static_cast<Derived*>(this)->setRelaxationTime(tau);
 	}
 
-	double getViscosity() const {
+	float_type getViscosity() const {
 		return static_cast<const Derived*>(this)->getViscosity();
 	}
 
-	double getRelaxationTime() const {
+	float_type getRelaxationTime() const {
 		return static_cast<const Derived*>(this)->getRelaxationTime();
 	}
 
 	// Initialization helpers for external setups
-	int getTotalNodes() const {
+	index_type getTotalNodes() const {
 		return static_cast<const Derived*>(this)->getTotalNodes();
 	}
 
-	int getQ() const { return static_cast<const Derived*>(this)->getQ(); }
+	index_type getQ() const { return static_cast<const Derived*>(this)->getQ(); }
 
-	std::array<int, LATTICE::DIM> getLatticeSize() const {
+	std::array<index_type, LATTICE::DIM> getLatticeSize() const {
 		return static_cast<const Derived*>(this)->getLatticeSize();
 	}
 
-	std::array<int, LATTICE::DIM> getPositionFromIndex(int idx) const {
+	std::array<index_type, LATTICE::DIM> getPositionFromIndex(
+		index_type idx) const {
 		return static_cast<const Derived*>(this)->getPositionFromIndex(idx);
 	}
 
-	void setRhoAtIndex(int idx, double rho) {
+	void setRhoAtIndex(index_type idx, float_type rho) {
 		static_cast<Derived*>(this)->setRhoAtIndex(idx, rho);
 	}
 
-	void setVelocityAtIndex(int idx, const std::array<double, LATTICE::DIM>& u) {
+	void setVelocityAtIndex(index_type idx,
+													const std::array<float_type, LATTICE::DIM>& u) {
 		static_cast<Derived*>(this)->setVelocityAtIndex(idx, u);
 	}
 
-	void setFAt(int k, int idx, double value) {
+	void setFAt(index_type k, index_type idx, float_type value) {
 		static_cast<Derived*>(this)->setFAt(k, idx, value);
 	}
 
-	double computeEquilibriumForInit(
-		int k, double rho_val, const std::array<double, LATTICE::DIM>& u) const {
+	float_type computeEquilibriumForInit(
+		index_type k, float_type rho_val,
+		const std::array<float_type, LATTICE::DIM>& u) const {
 		return static_cast<const Derived*>(this)->computeEquilibriumForInit(
 			k, rho_val, u);
 	}
 
-	const std::array<double, LATTICE::DIM>& getVelocityAtIndex(int idx) const {
+	const std::array<float_type, LATTICE::DIM>& getVelocityAtIndex(
+		index_type idx) const {
 		return static_cast<const Derived*>(this)->getVelocityAtIndex(idx);
 	}
 
-	const double getRhoAtIndex(int idx) const {
+	float_type getRhoAtIndex(index_type idx) const {
 		return static_cast<const Derived*>(this)->getRhoAtIndex(idx);
 	}
 };
-
 
 #endif
