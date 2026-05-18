@@ -1,14 +1,12 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-#include <omp.h>
 #include <cassert>
 
 #include <algorithm>
 #include <memory>
 #include <vector>
 #include <array>
-
 
 // filesystem and io
 #include <fstream>
@@ -26,6 +24,13 @@
 #include <numbers>
 #include <cmath>
 
+// std time
+#include <chrono>
+
+//!!! todo: integrate to easily switch precision and save memory
+// type aliases for floating point and index types
+using fp_t = double; 
+using index_t = uint32_t;
 
 // some mathematical constants
 constexpr double PI = std::numbers::pi_v<double>;

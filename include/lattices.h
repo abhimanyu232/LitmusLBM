@@ -27,8 +27,8 @@ concept LatticeType = requires {
 // D2Q9 lattice implementation
 class D2Q9 {
  public:
-	static constexpr int DIM = 2;
-	static constexpr int Q = 9;
+	static constexpr size_t DIM = 2;
+	static constexpr size_t Q = 9;
 	// static constexpr T0 = 1. / 3.0;
 	static constexpr double Cs = 1.0 / std::sqrt(3.0);
 
@@ -38,7 +38,7 @@ class D2Q9 {
 		// y components
 		0, 0, 1, 0, -1, 1, 1, -1, -1};
 
-	static constexpr std::array<int, Q> reflected_index = {0, 3, 4, 1, 2,
+	static constexpr std::array<size_t, Q> reflected_index = {0, 3, 4, 1, 2,
 																												 7, 8, 6, 5};
 
 	static constexpr std::array<double, Q> weights = {
@@ -48,7 +48,7 @@ class D2Q9 {
  public:
 	// static getters
 
-	const int getQ() const { return Q; }
+	const size_t getQ() const { return Q; }
 
 	// double getT0() const { return T0; }
 
@@ -64,13 +64,13 @@ class D2Q9 {
 // D2Q5 lattice implementation
 class D2Q5 {
  public:
-	static constexpr int DIM = 2;
-	static constexpr int Q = 5;
+	static constexpr size_t DIM = 2;
+	static constexpr size_t Q = 5;
 	static constexpr std::array<int, DIM * Q> velocities = {	// x components
 		0, 1, 0, -1, 0,
 		// y components
 		0, 0, 1, 0, -1};
-	static constexpr std::array<int, Q> reflected_index = {0, 3, 4, 1, 2};
+	static constexpr std::array<size_t, Q> reflected_index = {0, 3, 4, 1, 2};
 	static constexpr std::array<double, Q> weights = {
 		(1.0 / 3.0), (1.0 / 6.0), (1.0 / 6.0), (1.0 / 6.0), (1.0 / 6.0)};
 
@@ -79,7 +79,7 @@ class D2Q5 {
 
  public:
 	// static getters
-	const int getQ() const { return Q; }
+	const size_t getQ() const { return Q; }
 
 	// static double getT0() const { return T0; }
 
@@ -95,8 +95,8 @@ class D2Q5 {
 // D3Q19 lattice implementation
 class D3Q19 {
  public:
-	static constexpr int DIM = 3;
-	static constexpr int Q = 19;
+	static constexpr size_t DIM = 3;
+	static constexpr size_t Q = 19;
 	static constexpr double Cs = 1. / std::sqrt(3.0);
 
 	static constexpr std::array<int, DIM * Q> velocities = {
@@ -120,7 +120,7 @@ class D3Q19 {
 
  public:
 	// static getters
-	const int getQ() const { return Q; }
+	const size_t getQ() const { return Q; }
 
 	const double getLatticeSpeedofSound() const { return Cs; }
 
@@ -134,8 +134,8 @@ class D3Q19 {
 // D3Q27 lattice implementation
 class D3Q27 {
  public:
-	static constexpr int DIM = 3;
-	static constexpr int Q = 27;
+	static constexpr size_t DIM = 3;
+	static constexpr size_t Q = 27;
 	static constexpr double Cs = 1. / std::sqrt(3.0);
 	// Initialize D3Q27 velocities: {cx, cy, cz}
 	// Order: rest particle, face neighbors, edge neighbors, corner neighbors
@@ -168,7 +168,7 @@ class D3Q27 {
  public:
 	// static getters
 
-	const int getQ() const { return Q; }
+	const size_t getQ() const { return Q; }
 
 	const double getLatticeSpeedofSound() const { return Cs; }
 

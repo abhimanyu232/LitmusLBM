@@ -13,6 +13,7 @@
 
 *.png   
 
+
 plots/
 plots/*
 
@@ -25,6 +26,7 @@ optimize_comparison_bins/*
 
 *.kilo
 *.specstory
+session*
 
 *.x
 
