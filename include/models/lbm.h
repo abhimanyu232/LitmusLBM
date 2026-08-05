@@ -1,8 +1,11 @@
 #ifndef LBM_H
 #define LBM_H
 
+#include <format>
 #include "../policy/layout_policy.h"
 #include "models.h"
+
+//todo: possibly avoided or improved using concepts
 
 // Standard LBM implementation inheriting from Models using CRTP
 template <LatticeType LATTICE, LayoutPolicy LAYOUT>
@@ -19,7 +22,8 @@ class LBM : public Models<LBM<LATTICE, LAYOUT>, LATTICE> {
 	std::unique_ptr<Mesh<LATTICE::DIM, LATTICE, LAYOUT>> mesh;
 
 	index_type total_nodes;
-	float_type tau, nu;
+	float_type nu, tau, beta;
+	float_type gamma, PrandtlNo, Cv;
 	size_t current_step;
 	double current_time;
 	double dt;
@@ -27,29 +31,15 @@ class LBM : public Models<LBM<LATTICE, LAYOUT>, LATTICE> {
 	// Fields
 	// Flattened storage arrays
 	//!!! why are these dynamic vectors, the depend only on above static variables.
-	std::vector<float_type> f, f_new, rho;
-	std::vector<std::array<float_type, DIM>> velocity;
-	std::vector<float_type> vorticity;
-	// Note: In 3D, vorticity would be a vector field
-
- private:
-	float_type computeEquilibrium(index_type k, float_type rho_val,
-														const std::array<float_type, DIM>& u_vel) const {
-		const auto& v = LATTICE::velocities;
-		const auto& w = LATTICE::weights;
-
-		float_type cu = 0.0;
-		float_type usqr = 0.0;
-		for (index_type d = 0; d < DIM; ++d) {
-			index_type cIdx = k + d * Q;	// !!! cache : strided access
-			cu += v[cIdx] * u_vel[d];
-			// cu += v[k][d] * u[d];
-			usqr += u_vel[d] * u_vel[d];
-		}
-		return w[k] * rho_val * (1.0_fp + 3.0_fp * cu + 4.5_fp * cu * cu - 1.5_fp * usqr);
-	}
 
  public:
+	std::vector<float_type> f, f_new, rho;
+	// std::vector<float_type> energy;
+	std::vector<std::array<float_type, DIM>> velocity;
+	std::vector<float_type> vorticity;
+
+	// Note: In 3D, vorticity would be a vector field
+
 	LBM(const std::array<index_type, DIM>& size, float_type viscosity)
 			: domain_size(size),
 				nu(viscosity),
@@ -58,6 +48,7 @@ class LBM : public Models<LBM<LATTICE, LAYOUT>, LATTICE> {
 				dt(1.0) {
 		//todo: error checking here, check for tau > 0.5 (nu < 0) for stability
 		tau = 3.0 * nu + 0.5;
+		beta = 1 / (2 * tau);
 		if (tau <= 0.5) {
 			std::cerr << "Error: tau must be > 0.5 for stability (nu > 0). Got tau="
 								<< tau << std::endl;
@@ -78,11 +69,30 @@ class LBM : public Models<LBM<LATTICE, LAYOUT>, LATTICE> {
 		f.resize(Q * mesh->total_nodes);
 		f_new.resize(Q * mesh->total_nodes);
 		rho.resize(mesh->total_nodes);
+		// energy.resize(mesh->total_nodes);
 		velocity.resize(mesh->total_nodes);
 		vorticity.resize(mesh->total_nodes);
 
 		std::cout << "Initialized " << LATTICE::getName() << " LBM with "
 							<< mesh->total_nodes << " nodes" << std::endl;
+	}
+
+	float_type computeEquilibrium(
+		index_type k, float_type rho_val,
+		const std::array<float_type, DIM>& u_vel) const {
+		const auto& v = LATTICE::velocities;
+		const auto& w = LATTICE::weights;
+
+		float_type cu = 0.0;
+		float_type usqr = 0.0;
+		for (index_type d = 0; d < DIM; ++d) {
+			index_type cIdx = k + d * Q;	// !!! cache : strided access
+			cu += v[cIdx] * u_vel[d];
+			// cu += v[k][d] * u[d];
+			usqr += u_vel[d] * u_vel[d];
+		}
+		return w[k] * rho_val *
+					 (1.0_fp + 3.0_fp * cu + 4.5_fp * cu * cu - 1.5_fp * usqr);
 	}
 
 	// todo: should also ideally call the setup->init() function here
@@ -94,111 +104,97 @@ class LBM : public Models<LBM<LATTICE, LAYOUT>, LATTICE> {
 	// todo:!!! inline this function for better everything, lots of reuse here.
 	void step() {
 
-		/**
-		 *  computeMacroscopic();
-		*/
 		const auto& v = LATTICE::velocities;
 		const auto& w = LATTICE::weights;
 
-#pragma omp parallel for
-		for (index_type i = 0; i < mesh->total_nodes; ++i) {
-			// reset
-			float_type rho_acc = 0.0;
-			std::array<float_type, DIM> u_acc{};
-
-			for (index_type k = 0; k < Q; ++k) {
-				// note: [AoS] v [SoA]
-				// here prefer to have sequential access in k (over populations)
-
-				// Layout agnostic index based on LayoutPolicy
-				index_type idx = LAYOUT::getIndex(k, i, Q, total_nodes);
-
-				float_type fk = this->f[idx];
-				rho_acc += fk;
-				for (index_type d = 0; d < DIM; ++d) {
-					index_type cIdx = k + d * Q;
-					u_acc[d] += v[cIdx] * fk;	 // v[k][d]
-				}
-			}
-			// normalize
-			rho[i] = rho_acc;
-			if (rho_acc > 0.0) {
-				for (index_type d = 0; d < DIM; ++d)
-					velocity[i][d] = u_acc[d] / rho_acc;
-			} else [[unlikely]] {
-				std::cerr << " negative density \n ";
-				// std::exit(EXIT_FAILURE);
-				// todo: save state, and exit after the loop ends.
-				// todo: example: bool sim_error = true; later check sim_error == true and then std::exit
-				// std::exit inside parallel worker region is UB for openmp
-			}
-		}
-		/**
-		 *  end computeMacroscopic();
-		*/
-
-		/**
-		 * collide();
-		*/
-#pragma omp parallel for
-		for (index_type i = 0; i < mesh->total_nodes; ++i) {
-
-			float_type usqr{0.};
-			for (index_type d = 0; d < DIM; ++d) {	// dot(u,u)
-				usqr += velocity[i][d] * velocity[i][d];
-			}
-
-			for (index_type k = 0; k < Q; ++k) {
-
-				// Layout agnostic index based on LayoutPolicy
-				index_type idx = LAYOUT::getIndex(k, i, Q, total_nodes);
-
-				/**
-				 * computeEquilibrium
-				*/
-				float_type cu{0.0};
-				for (index_type d = 0; d < DIM; ++d) {
-					index_type cIdx = k + d * Q;
-					cu += v[cIdx] * velocity[i][d];
-				}
-				float_type feq =
-					w[k] * rho[i] * (1.0_fp + 3.0_fp * cu + 4.5_fp * cu * cu - 1.5_fp * usqr);
-				/**
-				 * end computeEquilibrium
-				*/
-
-				this->f_new[idx] = this->f[idx] - (this->f[idx] - feq) / tau;
-			}
-		}
-		/**
-		 *  end collide();
-		*/
-
-		/**
+#pragma omp parallel
+		{
+			/**
 		 *   stream();
 		*/
-#pragma omp parallel for
-		for (index_type i = 0; i < mesh->total_nodes; ++i) {
-			for (index_type k = 0; k < Q; ++k) {
+#pragma omp for schedule(static)
+			for (index_type i = 0; i < mesh->total_nodes; ++i) {
+				// reset
+				float_type rho_acc = 0.0;
+				std::array<float_type, DIM> u_acc{};
+				// float_type energy_acc = 0.0;
 
-				// Layout agnostic index based on LayoutPolicy
-				// PULL : source pre-computed, destination using policy
-				index_type src = mesh->prev_neighbour_index[i][k];
-				index_type dst = LAYOUT::getIndex(k, i, Q, total_nodes);
-				f[dst] = f_new[src];
+				for (index_type k = 0; k < Q; ++k) {
+					// Layout agnostic index based on LayoutPolicy
+					// PULL : source pre-computed, destination using policy
+					index_type src = mesh->prev_neighbour_index[i][k];
+					index_type dst = LAYOUT::getIndex(k, i, Q, total_nodes);
+					f[dst] = f_new[src];
 
-				// PUSH : destination pre-computed, source using policy
-				// index_type src =  LAYOUT::getIndex(k, i, Q, total_nodes); // k * total_nodes + i;
-				// index_type dst =  mesh->next_neighbour_index[i][k];;
-				// f[dst] = f_new[src];
-
-				// todo: (mem) (2) inplace streaming, AA pattern
-				//!!! check race conditions, none exist currently
+					float_type fk = f[dst];
+					// macro computation
+					// float_type temp_v2;
+					rho_acc += fk;
+					for (index_type d = 0; d < DIM; ++d) {
+						index_type cIdx = k + d * Q;
+						u_acc[d] += v[cIdx] * fk;	 // v[k][d]
+																			 // temp_v2 += v[cIdx] * v[cIdx];
+					}
+					// todo: (mem) (2) inplace streaming, AA pattern
+				}
+				// normalize
+				rho[i] = rho_acc;
+				if (rho_acc > 0.0) {
+					for (index_type d = 0; d < DIM; ++d) {
+						velocity[i][d] = u_acc[d] / rho_acc;
+					}
+					// energy[i] = energy_acc;
+					// temperature = (2 * energy_acc - (dot(velocity[i], velocity[i]))) / DIM;
+				} else [[unlikely]] {
+					std::cerr << " negative density \n ";
+					// std::exit(EXIT_FAILURE);
+					// todo: save state, and exit after the loop ends.
+					// todo: example: bool sim_error = true; later check sim_error == true and then std::exit
+					// std::exit inside parallel worker region is UB for openmp
+				}
 			}
-		}
-		/**
+			/**
 		 *  end stream();
 		*/
+			/**
+		 * collide();
+		*/
+#pragma omp for schedule(static)
+			for (index_type i = 0; i < mesh->total_nodes; ++i) {
+
+				float_type usqr{0.};
+				for (index_type d = 0; d < DIM; ++d) {	// dot(u,u)
+					usqr += velocity[i][d] * velocity[i][d];
+				}
+
+				for (index_type k = 0; k < Q; ++k) {
+
+					// Layout agnostic index based on LayoutPolicy
+					index_type idx = LAYOUT::getIndex(k, i, Q, total_nodes);
+
+					/**
+				 * computeEquilibrium
+				*/
+					float_type cu{0.0};
+					for (index_type d = 0; d < DIM; ++d) {
+						index_type cIdx = k + d * Q;
+						cu += v[cIdx] * velocity[i][d];
+					}
+					float_type feq =
+						w[k] * rho[i] *
+						(1.0_fp + 3.0_fp * cu + 4.5_fp * cu * cu - 1.5_fp * usqr);
+					/**
+				 * end computeEquilibrium
+				*/
+					this->f_new[idx] =
+						this->f[idx] - 2 * beta * (this->f[idx] - feq);	 // *delta_t = 1
+				}
+			}
+			/**
+		 *  end collide();
+		 */
+		}
+
 		current_step++;
 		current_time += dt;
 	}
@@ -206,7 +202,7 @@ class LBM : public Models<LBM<LATTICE, LAYOUT>, LATTICE> {
 	void setFAt(index_type k, index_type idx, float_type value) {
 
 		// Layout agnostic index
-		f[LAYOUT::getIndex(k, idx, LATTICE::Q, total_nodes)] = value;
+		f_new[LAYOUT::getIndex(k, idx, LATTICE::Q, total_nodes)] = value;
 	}
 
 	void computeVorticity() {
@@ -286,8 +282,8 @@ class LBM : public Models<LBM<LATTICE, LAYOUT>, LATTICE> {
 			index_type idx = mesh->getNodeIndex(pos);
 
 			// save both components of velocity
-			float_type normal_pos =
-				static_cast<float_type>(xi) / static_cast<float_type>(domain_size[0] - 1);
+			float_type normal_pos = static_cast<float_type>(xi) /
+															static_cast<float_type>(domain_size[0] - 1);
 			outFile << normal_pos << '\t' << velocity[idx][0] << '\t'
 							<< velocity[idx][1] << std::endl;
 		}
@@ -312,7 +308,7 @@ class LBM : public Models<LBM<LATTICE, LAYOUT>, LATTICE> {
 	}
 
 	std::string getModelName() const {
-		return "Standard LBM (" + LATTICE::getName() + ")";
+		return std::format("Standard LBM ({})", LATTICE::getName());
 	}
 
 	size_t getCurrentStep() const { return current_step; }
@@ -322,10 +318,12 @@ class LBM : public Models<LBM<LATTICE, LAYOUT>, LATTICE> {
 	void setViscosity(float_type viscosity) {
 		nu = viscosity;
 		tau = 3.0_fp * nu + 0.5_fp;
+		beta = 1 / (2 * tau);
 	}
 
 	void setRelaxationTime(float_type relaxation_time) {
 		tau = relaxation_time;
+		beta = 1 / (2 * tau);
 		nu = (tau - 0.5_fp) / 3.0_fp;
 	}
 
@@ -356,12 +354,14 @@ class LBM : public Models<LBM<LATTICE, LAYOUT>, LATTICE> {
 		return velocity[idx];
 	}
 
-	void setVelocityAtIndex(index_type idx, const std::array<float_type, DIM>& u) {
+	void setVelocityAtIndex(index_type idx,
+													const std::array<float_type, DIM>& u) {
 		velocity[idx] = u;
 	}
 
-	float_type computeEquilibriumForInit(index_type k, float_type rho_val,
-																	 const std::array<float_type, DIM>& u) const {
+	float_type computeEquilibriumForInit(
+		index_type k, float_type rho_val,
+		const std::array<float_type, DIM>& u) const {
 		return computeEquilibrium(k, rho_val, u);
 	}
 };

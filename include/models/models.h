@@ -4,11 +4,13 @@
 
 #include "../lattices.h"
 
+//todo: possibly avoided or improved using concepts
+
 // CRTP base class for simulation models
 template <typename Derived, LatticeType LATTICE>
 class Models {
  public:
-	// virtual ~Models() = default;
+	~Models() = default;
 
 	void init() { static_cast<Derived*>(this)->init(); }
 

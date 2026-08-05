@@ -101,6 +101,7 @@ class TaylorGreenVortex
 		float_type slice_ux_exact_runner{0.}, slice_uy_exact_runner{0.};
 		float_type L2_err_ux_slice{0.}, L2_err_uy_slice{0.};
 
+#pragma omp parallel for schedule(static)
 		for (index_type i = 0; i < total_nodes; ++i) {
 			auto u_lbm = model.getVelocityAtIndex(i);
 			float_type ux_exact{0.}, uy_exact{0.};
@@ -130,8 +131,8 @@ class TaylorGreenVortex
 				slice_uy_exact_runner += uy_exact_sq;
 
 				// write slice to file
-				float_type normal_pos =
-					static_cast<float_type>(pos[0]) / static_cast<float_type>(size[0] - 1);
+				float_type normal_pos = static_cast<float_type>(pos[0]) /
+																static_cast<float_type>(size[0] - 1);
 				ofile_slice << normal_pos << '\t' << ux_exact << ' ' << u_lbm[0] << '\t'
 										<< uy_exact << ' ' << u_lbm[1] << std::endl;
 			}
@@ -247,7 +248,8 @@ int main() {
 	constexpr float_type visc = 0.01;	 // can be overridden by the setup
 
 	// Choose between structure of array or array of structs for population storage
-	using layout_type = AoSLayout;	// SoALayout;//
+	//AoSLayout;	// SoALayout;
+	using layout_type = AoSLayout;
 	using model_type = LBM<D2Q9, layout_type>;
 	auto model = std::make_unique<model_type>(domain_size, visc);
 

@@ -50,11 +50,11 @@ class D2Q9 {
  public:
 	// static getters
 
-	const index_type getQ() const { return Q; }
+	static index_type getQ() { return Q; }
 
 	// float_type getT0() const { return T0; }
 
-	const float_type getLatticeSpeedofSound() const { return Cs; }
+	static float_type getLatticeSpeedofSound() { return Cs; }
 
 	const std::array<int8_t, DIM * Q>& getVelocities() const {
 		return velocities;
@@ -62,7 +62,7 @@ class D2Q9 {
 
 	const std::array<float_type, Q>& getWeights() const { return weights; }
 
-	static const std::string getName() { return "D2Q9"; }
+	static const std::string_view getName() { return "D2Q9"; }
 };
 
 // D2Q5 lattice implementation
@@ -83,11 +83,11 @@ class D2Q5 {
 
  public:
 	// static getters
-	const index_type getQ() const { return Q; }
+	static index_type getQ() { return Q; }
 
 	// static float_type getT0() const { return T0; }
 
-	const float_type getLatticeSpeedofSound() const { return Cs; }
+	static float_type getLatticeSpeedofSound() { return Cs; }
 
 	const std::array<int8_t, DIM * Q>& getVelocities() const {
 		return velocities;
@@ -95,7 +95,7 @@ class D2Q5 {
 
 	const std::array<float_type, Q>& getWeights() const { return weights; }
 
-	static const std::string getName() { return "D2Q5"; }
+	static const std::string_view getName() { return "D2Q5"; }
 };
 
 // D3Q19 lattice implementation
@@ -126,9 +126,9 @@ class D3Q19 {
 
  public:
 	// static getters
-	const index_type getQ() const { return Q; }
+	static index_type getQ() { return Q; }
 
-	const float_type getLatticeSpeedofSound() const { return Cs; }
+	static float_type getLatticeSpeedofSound() { return Cs; }
 
 	const std::array<int8_t, DIM * Q>& getVelocities() const {
 		return velocities;
@@ -136,7 +136,7 @@ class D3Q19 {
 
 	const std::array<float_type, Q>& getWeights() const { return weights; }
 
-	static const std::string getName() { return "D3Q19"; }
+	static const std::string_view getName() { return "D3Q19"; }
 };
 
 // D3Q27 lattice implementation
@@ -176,9 +176,9 @@ class D3Q27 {
  public:
 	// static getters
 
-	const index_type getQ() const { return Q; }
+	static index_type getQ() { return Q; }
 
-	const float_type getLatticeSpeedofSound() const { return Cs; }
+	static float_type getLatticeSpeedofSound() { return Cs; }
 
 	const std::array<int8_t, DIM * Q>& getVelocities() const {
 		return velocities;
@@ -186,7 +186,7 @@ class D3Q27 {
 
 	const std::array<float_type, Q>& getWeights() const { return weights; }
 
-	static const std::string getName() { return "D3Q27"; }
+	static const std::string_view getName() { return "D3Q27"; }
 };
 
 #endif

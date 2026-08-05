@@ -27,6 +27,8 @@ optimize_comparison_bins/*
 
 *.kilo
 *.specstory
+*.local
+
 session*
 
 *.x
