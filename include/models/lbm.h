@@ -9,13 +9,15 @@
 
 // Standard LBM implementation inheriting from Models using CRTP
 template <LatticeType LATTICE, LayoutPolicy LAYOUT>
-class LBM : public Models<LBM<LATTICE, LAYOUT>, LATTICE> {
- private:
+class LBM {
+ public:
 	// todo: make these short or uint_8t
 	static constexpr index_type DIM = LATTICE::DIM;
 	static constexpr index_type Q = LATTICE::Q;
-
+	static constexpr index_type Cs = LATTICE::Cs;
 	std::array<index_type, DIM> domain_size;
+	
+ private:
 
 	//!!! todo: (perf) : causes pointer dereferencing in the hot loop
 	// consider storing it as a simple Mesh member. // !!! (profile)
@@ -28,11 +30,11 @@ class LBM : public Models<LBM<LATTICE, LAYOUT>, LATTICE> {
 	double current_time;
 	double dt;
 
+	
+	public:
 	// Fields
 	// Flattened storage arrays
 	//!!! why are these dynamic vectors, the depend only on above static variables.
-
- public:
 	std::vector<float_type> f, f_new, rho;
 	// std::vector<float_type> energy;
 	std::vector<std::array<float_type, DIM>> velocity;
@@ -77,9 +79,10 @@ class LBM : public Models<LBM<LATTICE, LAYOUT>, LATTICE> {
 							<< mesh->total_nodes << " nodes" << std::endl;
 	}
 
-	float_type computeEquilibrium(
+	float_type computeFEquilibrium(
 		index_type k, float_type rho_val,
 		const std::array<float_type, DIM>& u_vel) const {
+
 		const auto& v = LATTICE::velocities;
 		const auto& w = LATTICE::weights;
 
@@ -103,7 +106,6 @@ class LBM : public Models<LBM<LATTICE, LAYOUT>, LATTICE> {
 
 	// todo:!!! inline this function for better everything, lots of reuse here.
 	void step() {
-
 		const auto& v = LATTICE::velocities;
 		const auto& w = LATTICE::weights;
 
@@ -174,20 +176,37 @@ class LBM : public Models<LBM<LATTICE, LAYOUT>, LATTICE> {
 
 					/**
 				 * computeEquilibrium
-				*/
+         */
 					float_type cu{0.0};
 					for (index_type d = 0; d < DIM; ++d) {
 						index_type cIdx = k + d * Q;
 						cu += v[cIdx] * velocity[i][d];
 					}
+
+					/**
+           * - Standard second-order Hermite expansion of the Maxwell-Boltzmann distribution
+           * - Only first 2 Hermite moments are matched (ρ and ρu)
+           * - stress tensor P_{ij} = Σ c_{k,i} c_{k,j} f_k^eq  correct only up to O(Ma²) due to the truncation
+           * - purely isothermal
+           */
 					float_type feq =
 						w[k] * rho[i] *
 						(1.0_fp + 3.0_fp * cu + 4.5_fp * cu * cu - 1.5_fp * usqr);
+
 					/**
-				 * end computeEquilibrium
-				*/
-					this->f_new[idx] =
-						this->f[idx] - 2 * beta * (this->f[idx] - feq);	 // *delta_t = 1
+          * end computeEquilibrium
+  				*/
+
+					/** 
+           * - collision ≡ f[k] − (f[k]−f_eq)/τ 
+           * - single relaxation rate
+           * - higher-order moments relax at same rate, i.e no control over numerical hyperviscosity
+           * - for 2D, Shear viscosity ν = cs²·(τ − 0.5) == bulk viscosity ζ
+					 * - for 3D, Shear viscosity ν =  2/3 * ζ, /bulk viscosity 
+           * - Pr = 1 ; since viscosity = thermal diffusivity
+					 * - BGK cannot independently control bulk viscosity
+           */
+					this->f_new[idx] = this->f[idx] - 2 * beta * (this->f[idx] - feq);
 				}
 			}
 			/**
@@ -200,7 +219,6 @@ class LBM : public Models<LBM<LATTICE, LAYOUT>, LATTICE> {
 	}
 
 	void setFAt(index_type k, index_type idx, float_type value) {
-
 		// Layout agnostic index
 		f_new[LAYOUT::getIndex(k, idx, LATTICE::Q, total_nodes)] = value;
 	}
@@ -265,7 +283,7 @@ class LBM : public Models<LBM<LATTICE, LAYOUT>, LATTICE> {
 													 const index_type slice_axis,
 													 const std::string& filename) {
 
-		if (slice_axis > 2) [[unlikely]] {
+		if (slice_axis >= DIM) [[unlikely]] {
 			std::cerr << "Error: Slice Axis out of bounds, please choose 0,1,2. ";
 			return;
 		}
@@ -334,9 +352,9 @@ class LBM : public Models<LBM<LATTICE, LAYOUT>, LATTICE> {
 	// Initialization helpers for external setups
 	index_type getTotalNodes() const { return mesh->total_nodes; }
 
-	index_type getQ() const { return Q; }
+	index_type getF_Q() const { return Q; }
 
-	float_type getLatticeSpeedofSound() const { return LATTICE::Cs; }
+	float_type getFLatticeSpeedofSound() const { return LATTICE::Cs; }
 
 	std::array<index_type, DIM> getLatticeSize() const { return domain_size; }
 
@@ -357,12 +375,6 @@ class LBM : public Models<LBM<LATTICE, LAYOUT>, LATTICE> {
 	void setVelocityAtIndex(index_type idx,
 													const std::array<float_type, DIM>& u) {
 		velocity[idx] = u;
-	}
-
-	float_type computeEquilibriumForInit(
-		index_type k, float_type rho_val,
-		const std::array<float_type, DIM>& u) const {
-		return computeEquilibrium(k, rho_val, u);
 	}
 };
 
