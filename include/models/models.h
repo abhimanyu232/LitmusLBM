@@ -4,108 +4,87 @@
 
 #include "../lattices.h"
 
-//todo: possibly avoided or improved using concepts
+template <typename ModelType>
+concept KineticModel = requires(ModelType& m, index_type idx, float_type val,
+																const std::array<float_type, ModelType::DIM>& u) {
+	// --- Lifecycle ---
+	{ m.init() } -> std::same_as<void>;
+	{ m.step() } -> std::same_as<void>;
+	{ m.computeVorticity() } -> std::same_as<void>;
 
-// CRTP base class for simulation models
-template <typename Derived, LatticeType LATTICE>
-class Models {
- public:
-	~Models() = default;
+	// --- State queries ---
+	{ m.getModelName() } -> std::convertible_to<std::string>;
+	{ m.getCurrentStep() } -> std::convertible_to<index_type>;
+	{ m.getCurrentTime() } -> std::convertible_to<double>;
 
-	void init() { static_cast<Derived*>(this)->init(); }
+	// --- Output ---
+	{
+		m.saveVelocityField(std::declval<const std::string&>())
+	} -> std::same_as<void>;
+	{
+		m.saveVorticityField(std::declval<const std::string&>())
+	} -> std::same_as<void>;
+	{
+		m.saveVelocitySlice2D(idx, idx, std::declval<const std::string&>())
+	} -> std::same_as<void>;
 
-	void step() { static_cast<Derived*>(this)->step(); }
+	// --- Spatial grid ---
+	{ m.getTotalNodes() } -> std::same_as<index_type>;
+	{ m.getLatticeSize() } -> std::same_as<std::array<index_type, ModelType::DIM>>;
+	{ m.getPositionFromIndex(idx) } -> std::same_as<std::array<index_type, ModelType::DIM>>;
 
-	void computeVorticity() { static_cast<Derived*>(this)->computeVorticity(); }
+	// --- Hydrodynamic fields ---
+	{ m.setRhoAtIndex(idx, val) } -> std::same_as<void>;
+	{ m.getRhoAtIndex(idx) } -> std::same_as<float_type>;
+	{ m.setVelocityAtIndex(idx, u) } -> std::same_as<void>;
+	{
+		m.getVelocityAtIndex(idx)
+	} -> std::same_as<const std::array<float_type, ModelType::DIM>&>;
+};
 
-	// Output functions
-	void saveVelocityField(const std::string& filename) {
-		static_cast<Derived*>(this)->saveVelocityField(filename);
-	}
+template <typename ModelType>
+concept IsothermalModel =
+	KineticModel<ModelType> && 
+				requires(ModelType& m, index_type idx, float_type val,
+						const std::array<float_type, ModelType::DIM>& u) {
+		// --- Single Population interface ---
+		{ m.getF_Q() } -> std::same_as<index_type>;
+		{ m.setFAt(idx, idx, val) } -> std::same_as<void>;
+		{ m.computeFEquilibrium(idx, val, u) } -> std::same_as<float_type>;
 
-	void saveVorticityField(const std::string& filename) {
-		static_cast<Derived*>(this)->saveVorticityField(filename);
-	}
+		// --- Lattice property ---
+		{ m.getFLatticeSpeedofSound() } -> std::same_as<float_type>;
 
-	void saveVelocitySlice2D(index_type index, index_type axis,
-													 const std::string& filename) {
-		static_cast<Derived*>(this)->saveVelocitySlice2D(index, axis, filename);
+		// --- Transport coefficients ---
+		{ m.setViscosity(val) } -> std::same_as<void>;
+		{ m.getViscosity() } -> std::same_as<float_type>;
+		{ m.setRelaxationTime(val) } -> std::same_as<void>;
+		{ m.getRelaxationTime() } -> std::same_as<float_type>;
 	};
 
-	// Getters for simulation state
-	std::string getModelName() const {
-		return static_cast<const Derived*>(this)->getModelName();
-	}
+template <typename ModelType>
+concept ThermalModel = IsothermalModel<ModelType> &&
+    requires(ModelType& m, index_type idx, float_type val,
+             const std::array<float_type, ModelType::DIM>& u) {
+    // --- Thermal population interface ---
+    { m.getG_Q() }                       -> std::same_as<index_type>;
+    { m.setGAt(idx, idx, val) }               -> std::same_as<void>;
+    { m.computeGEquilibrium(idx, val, u) }  -> std::same_as<float_type>;
 
-	size_t getCurrentStep() const {
-		return static_cast<const Derived*>(this)->getCurrentStep();
-	}
+    // --- Thermal lattice property ---
+    { m.getGLatticeSpeedofSound() } -> std::same_as<float_type>;
 
-	double getCurrentTime() const {
-		return static_cast<const Derived*>(this)->getCurrentTime();
-	}
+    // --- Thermal transport coefficients ---
+    { m.setThermalDiffusivity(val) }  -> std::same_as<void>;
+    { m.getThermalDiffusivity() }   -> std::same_as<float_type>;
+    { m.setPrandtlNumber(val) }       -> std::same_as<void>;
+    { m.getPrandtlNumber() }        -> std::same_as<float_type>;
 
-	// Configuration functions
-	void setViscosity(float_type nu) {
-		static_cast<Derived*>(this)->setViscosity(nu);
-	}
-
-	void setRelaxationTime(float_type tau) {
-		static_cast<Derived*>(this)->setRelaxationTime(tau);
-	}
-
-	float_type getViscosity() const {
-		return static_cast<const Derived*>(this)->getViscosity();
-	}
-
-	float_type getRelaxationTime() const {
-		return static_cast<const Derived*>(this)->getRelaxationTime();
-	}
-
-	// Initialization helpers for external setups
-	index_type getTotalNodes() const {
-		return static_cast<const Derived*>(this)->getTotalNodes();
-	}
-
-	index_type getQ() const { return static_cast<const Derived*>(this)->getQ(); }
-
-	std::array<index_type, LATTICE::DIM> getLatticeSize() const {
-		return static_cast<const Derived*>(this)->getLatticeSize();
-	}
-
-	std::array<index_type, LATTICE::DIM> getPositionFromIndex(
-		index_type idx) const {
-		return static_cast<const Derived*>(this)->getPositionFromIndex(idx);
-	}
-
-	void setRhoAtIndex(index_type idx, float_type rho) {
-		static_cast<Derived*>(this)->setRhoAtIndex(idx, rho);
-	}
-
-	void setVelocityAtIndex(index_type idx,
-													const std::array<float_type, LATTICE::DIM>& u) {
-		static_cast<Derived*>(this)->setVelocityAtIndex(idx, u);
-	}
-
-	void setFAt(index_type k, index_type idx, float_type value) {
-		static_cast<Derived*>(this)->setFAt(k, idx, value);
-	}
-
-	float_type computeEquilibriumForInit(
-		index_type k, float_type rho_val,
-		const std::array<float_type, LATTICE::DIM>& u) const {
-		return static_cast<const Derived*>(this)->computeEquilibriumForInit(
-			k, rho_val, u);
-	}
-
-	const std::array<float_type, LATTICE::DIM>& getVelocityAtIndex(
-		index_type idx) const {
-		return static_cast<const Derived*>(this)->getVelocityAtIndex(idx);
-	}
-
-	float_type getRhoAtIndex(index_type idx) const {
-		return static_cast<const Derived*>(this)->getRhoAtIndex(idx);
-	}
+    // --- Thermal fields ---
+    { m.setTemperatureAtIndex(idx, val) } -> std::same_as<void>;
+    { m.getTemperatureAtIndex(idx) }    -> std::same_as<float_type>;
+    { m.setEnergyAtIndex(idx, val) }      -> std::same_as<void>;
+    { m.getEnergyAtIndex(idx) }         -> std::same_as<float_type>;
 };
 
 #endif

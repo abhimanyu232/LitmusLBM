@@ -10,6 +10,7 @@
 // todo: need class members, initial values of macro quantities etc, useful for calculations later.
 //!!! maybe should derive from the model and not have it as a member.
 //!!! that simplifies the initialisation.
+// concept ModelType requires { requires model.step(); }
 template <typename Derived, typename ModelType>
 class Setups {
  public:
@@ -27,22 +28,22 @@ class Setups {
 };
 
 // todo: need class members, initial values of macro quantities etc, useful for calculations later.
-template <typename ModelType, LatticeType LATTICE>
+template <IsothermalModel ModelType>
 class TaylorGreenVortex
-		: public Setups<TaylorGreenVortex<ModelType, LATTICE>, ModelType> {
+		: public Setups<TaylorGreenVortex<ModelType>, ModelType> {
 
  public:
-	using Setups<TaylorGreenVortex<ModelType, LATTICE>, ModelType>::model;
+	using Setups<TaylorGreenVortex<ModelType>, ModelType>::model;
 
 	explicit TaylorGreenVortex(ModelType& m)
-			: Setups<TaylorGreenVortex<ModelType, LATTICE>, ModelType>(m) {
+			: Setups<TaylorGreenVortex<ModelType>, ModelType>(m) {
 		initialize();
 	}
 
 	void initialize() {
 		const auto size = model.getLatticeSize();
 		const index_type total_nodes = model.getTotalNodes();
-		const index_type Q = model.getQ();
+		const index_type Q = model.getF_Q(); //!!! why am I calling a runtime function for compile time info???
 		// set-up from Kallikounis Thesis : Re= 50 = [u0*L/nu]
 		float_type rho0 = 1.;	 // valid for standard LB
 		float_type u0 = 0.0287;
@@ -63,7 +64,7 @@ class TaylorGreenVortex
 			model.setRhoAtIndex(i, density);
 
 			for (index_type k = 0; k < Q; ++k) {
-				float_type feq = model.computeEquilibriumForInit(k, density, u);
+				float_type feq = model.computeFEquilibrium(k, density, u);
 				model.setFAt(k, i, feq);
 			}
 		}
@@ -84,7 +85,7 @@ class TaylorGreenVortex
 								<< "Uy_{Exact}" << ' ' << "Uy_{LBM}" << std::endl;
 
 		float_type lattice_ref_temp =
-			model.getLatticeSpeedofSound() * model.getLatticeSpeedofSound();
+			model.getFLatticeSpeedofSound() * model.getFLatticeSpeedofSound();
 		float_type p0 = 1.0 / lattice_ref_temp;	 // valid for standard LB
 		float_type u0 = 0.0287;
 		// float_type reynolds = 50;
@@ -104,8 +105,8 @@ class TaylorGreenVortex
 #pragma omp parallel for schedule(static)
 		for (index_type i = 0; i < total_nodes; ++i) {
 			auto u_lbm = model.getVelocityAtIndex(i);
-			float_type ux_exact{0.}, uy_exact{0.};
-			float_type p_exact{0.};
+			float_type ux_exact, uy_exact;
+			float_type p_exact;
 
 			auto pos = model.getPositionFromIndex(i);
 			float_type x_pos = static_cast<float_type>(pos[0]) / (size[0] - 1);
@@ -163,22 +164,22 @@ class TaylorGreenVortex
 };
 
 // todo: need class members, initial values of macro quantities etc, useful for calculations later.
-template <typename ModelType, LatticeType LATTICE>
+template <IsothermalModel ModelType>
 class DoublePeriodicShearLayer
-		: public Setups<DoublePeriodicShearLayer<ModelType, LATTICE>, ModelType> {
+		: public Setups<DoublePeriodicShearLayer<ModelType>, ModelType> {
 
  public:
-	using Setups<DoublePeriodicShearLayer<ModelType, LATTICE>, ModelType>::model;
+	using Setups<DoublePeriodicShearLayer<ModelType>, ModelType>::model;
 
 	explicit DoublePeriodicShearLayer(ModelType& m)
-			: Setups<DoublePeriodicShearLayer<ModelType, LATTICE>, ModelType>(m) {
+			: Setups<DoublePeriodicShearLayer<ModelType>, ModelType>(m) {
 		initialize();
 	}
 
 	void initialize() {
 		const auto size = model.getLatticeSize();
 		const index_type total_nodes = model.getTotalNodes();
-		const index_type Q = model.getQ();
+		const index_type Q = model.getF_Q(); //!!! why am I calling a runtime function for compile time info???
 		for (index_type i = 0; i < total_nodes; ++i) {
 			auto pos = model.getPositionFromIndex(i);
 			float_type x_pos = static_cast<float_type>(pos[0]) / (size[0] - 1);
@@ -205,7 +206,7 @@ class DoublePeriodicShearLayer
 			model.setVelocityAtIndex(i, u);
 			model.setRhoAtIndex(i, 1.0);
 			for (index_type k = 0; k < Q; ++k) {
-				float_type feq = model.computeEquilibriumForInit(k, 1.0, u);
+				float_type feq = model.computeFEquilibrium(k, 1.0, u);
 				model.setFAt(k, i, feq);
 			}
 		}
@@ -264,13 +265,13 @@ int main() {
 	int test_case = 1;	// Taylor-Green Vortex
 	// if (test_case == 1) {
 	std::cout << "Initializing Taylor-Green Vortex..." << std::endl;
-	TaylorGreenVortex<model_type, D2Q9> setup(*model);
+	TaylorGreenVortex<model_type> setup(*model);
 	// }
 	// else
 	// {
 	// int test_case = 2;  Double Periodic Shear Layer
 	// 	std::cout << "Initializing Double Periodic Shear Layer..." << std::endl;
-	// DoublePeriodicShearLayer<model_type, D2Q9> setup(*model);
+	// DoublePeriodicShearLayer<model_type> setup(*model);
 	// }
 
 	// Mass Conservation Check // cover with if-def DEBUG block
