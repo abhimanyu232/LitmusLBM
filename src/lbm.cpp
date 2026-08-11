@@ -10,57 +10,49 @@
 // todo: need class members, initial values of macro quantities etc, useful for calculations later.
 //!!! maybe should derive from the model and not have it as a member.
 //!!! that simplifies the initialisation.
-// concept ModelType requires { requires model.step(); }
-template <typename Derived, typename ModelType>
-class Setups {
- public:
-	ModelType& model;
-
-	Setups(ModelType& m) : model(m) {}
-
-	void initialize() { static_cast<Derived*>(this)->initialize(); }
 
 	// not sure if it is a good idea doing this here
-	// std::array<double, DIM> u0{0.};
+	// std::array<double, Dim> u0{0.};
 	// double rho0 = 1.0;
 	// double T0{model.getLatticeSpeedofSound()*model.getLatticeSpeedofSound()};
 	// double p0 = rho0*T0;
-};
+// };
 
 // todo: need class members, initial values of macro quantities etc, useful for calculations later.
 template <IsothermalModel ModelType>
-class TaylorGreenVortex
-		: public Setups<TaylorGreenVortex<ModelType>, ModelType> {
+class TaylorGreenVortex {
 
  public:
-	using Setups<TaylorGreenVortex<ModelType>, ModelType>::model;
+	ModelType& model;
 
-	explicit TaylorGreenVortex(ModelType& m)
-			: Setups<TaylorGreenVortex<ModelType>, ModelType>(m) {
-		initialize();
-	}
+	explicit TaylorGreenVortex(ModelType& m) : model(m) { initialize(); }
 
 	void initialize() {
 		const auto size = model.getLatticeSize();
 		const index_type total_nodes = model.getTotalNodes();
-		const index_type Q = model.getF_Q(); //!!! why am I calling a runtime function for compile time info???
+		const index_type Q =
+			model
+				.getF_Q();	//!!! why am I calling a runtime function for compile time info???
 		// set-up from Kallikounis Thesis : Re= 50 = [u0*L/nu]
 		float_type rho0 = 1.;	 // valid for standard LB
+		float_type cs2_inv =
+			1 / (model.getFLatticeSpeedofSound() * model.getFLatticeSpeedofSound());
 		float_type u0 = 0.0287;
 		float_type reynolds = 50.;
 		model.setViscosity(u0 * size[0] / reynolds);	// kinematic viscosity
-		std::cout << " Viscosity Set : nu = " << model.getViscosity() << std::endl;
+		std::cout << " Viscosity Set : nu = " << model.getViscosity() << '\n';
 		for (index_type i = 0; i < total_nodes; ++i) {
 			auto pos = model.getPositionFromIndex(i);
-			float_type x_pos = static_cast<float_type>(pos[0]) / (size[0] - 1);
-			float_type y_pos = static_cast<float_type>(pos[1]) / (size[1] - 1);
+			float_type x_pos = static_cast<float_type>(pos[0]) / (size[0]);	 // - 1)
+			float_type y_pos = static_cast<float_type>(pos[1]) / (size[1]);	 // - 1)
 			std::array<float_type, 2> u;
 			u[0] = -u0 * cos(2 * PI * x_pos) * sin(2 * PI * y_pos);
 			u[1] = u0 * sin(2 * PI * x_pos) * cos(2 * PI * y_pos);
 			model.setVelocityAtIndex(i, u);
 
-			float_type density =
-				rho0 - 0.25 * (u0 * u0) * (cos(2 * PI * x_pos) + cos(2 * PI * y_pos));
+			// p = cs2 * rho  //  p_amp = rho0 * u0 * u0 / 4;
+			float_type density = rho0 - 0.25 * cs2_inv * (u0 * u0) *
+																		(cos(4 * PI * x_pos) + cos(4 * PI * y_pos));
 			model.setRhoAtIndex(i, density);
 
 			for (index_type k = 0; k < Q; ++k) {
@@ -76,18 +68,20 @@ class TaylorGreenVortex
 		const auto size = model.getLatticeSize();
 
 		// also compute a 2D slice along x-axis at the middle-ish plane.
-		index_type slice_y = static_cast<int>(size[0] / 2);
+		index_type slice_y = static_cast<int>(size[1] / 8);
 		const std::string filename_slice =
 			"slice2D" + std::to_string(slice_y) + "_" +
 			std::to_string(static_cast<int>(time)) + ".dat";
 		std::ofstream ofile_slice(filename_slice);
 		ofile_slice << "Xpos" << '\t' << "Ux_{Exact}" << ' ' << "Ux_{LBM}" << '\t'
-								<< "Uy_{Exact}" << ' ' << "Uy_{LBM}" << std::endl;
+								<< "Uy_{Exact}" << ' ' << "Uy_{LBM}" << '\n';
 
-		float_type lattice_ref_temp =
-			model.getFLatticeSpeedofSound() * model.getFLatticeSpeedofSound();
-		float_type p0 = 1.0 / lattice_ref_temp;	 // valid for standard LB
 		float_type u0 = 0.0287;
+		float_type rho0 = 1.;	 // valid for standard LB
+		float_type cs2 =
+			model.getFLatticeSpeedofSound() * model.getFLatticeSpeedofSound();
+		float_type p0 = cs2 * rho0;
+		float_type p_amp = rho0 * u0 * u0 / 4;
 		// float_type reynolds = 50;
 		float_type nu = model.getViscosity();	 // kinematic viscosity
 
@@ -102,21 +96,21 @@ class TaylorGreenVortex
 		float_type slice_ux_exact_runner{0.}, slice_uy_exact_runner{0.};
 		float_type L2_err_ux_slice{0.}, L2_err_uy_slice{0.};
 
-#pragma omp parallel for schedule(static)
+		// #pragma omp parallel for schedule(static)
 		for (index_type i = 0; i < total_nodes; ++i) {
 			auto u_lbm = model.getVelocityAtIndex(i);
 			float_type ux_exact, uy_exact;
 			float_type p_exact;
 
 			auto pos = model.getPositionFromIndex(i);
-			float_type x_pos = static_cast<float_type>(pos[0]) / (size[0] - 1);
-			float_type y_pos = static_cast<float_type>(pos[1]) / (size[1] - 1);
+			float_type x_pos = static_cast<float_type>(pos[0]) / (size[0]);	 // - 1)
+			float_type y_pos = static_cast<float_type>(pos[1]) / (size[1]);	 // - 1)
 
 			ux_exact = -u0 * cos(2 * PI * x_pos) * sin(2 * PI * y_pos) * exp_K_time;
 			uy_exact = u0 * sin(2 * PI * x_pos) * cos(2 * PI * y_pos) * exp_K_time;
 
-			p_exact = p0 - 0.25 * (u0 * u0) *
-											 (cos(2 * PI * x_pos) + cos(2 * PI * y_pos)) * exp_K_time;
+			p_exact = p0 - p_amp * (cos(4 * PI * x_pos) + cos(4 * PI * y_pos)) *
+											 exp_K_time * exp_K_time;
 
 			float_type ux_exact_sq = std::pow(ux_exact, 2);
 			float_type uy_exact_sq = std::pow(uy_exact, 2);
@@ -132,10 +126,10 @@ class TaylorGreenVortex
 				slice_uy_exact_runner += uy_exact_sq;
 
 				// write slice to file
-				float_type normal_pos = static_cast<float_type>(pos[0]) /
-																static_cast<float_type>(size[0] - 1);
+				float_type normal_pos =
+					static_cast<float_type>(pos[0]) / static_cast<float_type>(size[0]);
 				ofile_slice << normal_pos << '\t' << ux_exact << ' ' << u_lbm[0] << '\t'
-										<< uy_exact << ' ' << u_lbm[1] << std::endl;
+										<< uy_exact << ' ' << u_lbm[1] << '\n';
 			}
 
 			ux_exact_runner += ux_exact_sq;
@@ -156,34 +150,32 @@ class TaylorGreenVortex
 
 		std::cout
 			<< "Velocity RMS Error (Relative) over domain, (Ux_Err,Uy_Err) = ("
-			<< L2_err_ux_total << ", " << L2_err_uy_total << ")" << std::endl;
+			<< L2_err_ux_total << ", " << L2_err_uy_total << ")" << '\n';
 
 		std::cout << "Velocity RMS Error (Relative) over slice, (Ux_Err,Uy_Err) = ("
-							<< L2_err_ux_slice << ", " << L2_err_uy_slice << ")" << std::endl;
+							<< L2_err_ux_slice << ", " << L2_err_uy_slice << ")" << '\n';
 	}
 };
 
 // todo: need class members, initial values of macro quantities etc, useful for calculations later.
 template <IsothermalModel ModelType>
-class DoublePeriodicShearLayer
-		: public Setups<DoublePeriodicShearLayer<ModelType>, ModelType> {
+class DoublePeriodicShearLayer {
 
  public:
-	using Setups<DoublePeriodicShearLayer<ModelType>, ModelType>::model;
+	ModelType& model;
 
-	explicit DoublePeriodicShearLayer(ModelType& m)
-			: Setups<DoublePeriodicShearLayer<ModelType>, ModelType>(m) {
-		initialize();
-	}
+	explicit DoublePeriodicShearLayer(ModelType& m) : model(m) { initialize(); }
 
 	void initialize() {
 		const auto size = model.getLatticeSize();
 		const index_type total_nodes = model.getTotalNodes();
-		const index_type Q = model.getF_Q(); //!!! why am I calling a runtime function for compile time info???
+		const index_type Q =
+			model
+				.getF_Q();	//!!! why am I calling a runtime function for compile time info???
 		for (index_type i = 0; i < total_nodes; ++i) {
 			auto pos = model.getPositionFromIndex(i);
-			float_type x_pos = static_cast<float_type>(pos[0]) / (size[0] - 1);
-			float_type y_pos = static_cast<float_type>(pos[1]) / (size[1] - 1);
+			float_type x_pos = static_cast<float_type>(pos[0]) / (size[0]);
+			float_type y_pos = static_cast<float_type>(pos[1]) / (size[1]);
 			std::array<float_type, 2> u;
 
 			// setup: https://www.researchgate.net/publication/335029866_Pseudoentropic_derivation_of_the_regularized_lattice_Boltzmann_method
@@ -211,27 +203,29 @@ class DoublePeriodicShearLayer
 			}
 		}
 	}
+
+	// void compute_error(double time) {}
 };
 
 int main() {
 	std::cout << "Using " << omp_get_max_threads() << " OpenMP threads"
-						<< std::endl;
+						<< '\n';
 
 	// Create output directory
 	std::string result_directory_name = "result_fields";
 	std::filesystem::path dir(result_directory_name);
 	if (!std::filesystem::exists(dir)) {
 		if (std::filesystem::create_directory(dir)) {	 // default permissions
-			std::cout << " Results directory created : " << dir << std::endl;
+			std::cout << " Results directory created : " << dir << '\n';
 		} else {
-			std::cerr << "Error: Failed to create directory " << dir << std::endl;
+			std::cerr << "Error: Failed to create directory " << dir << '\n';
 		}
 	} else {
-		std::cout << " Results directory already exists : " << dir << std::endl;
+		std::cout << " Results directory already exists : " << dir << '\n';
 	}
 
 	// Simulation parameters
-	constexpr index_type DIM = 2;
+	constexpr index_type Dim = 2;
 	constexpr float_type scale = 25.;
 	constexpr index_type LX = 500;	//16 * scale;
 	constexpr index_type LY = 500;	//16 * scale;
@@ -243,7 +237,7 @@ int main() {
 	constexpr index_type checkpoint = 50 * scale;
 	constexpr index_type NSTEPS = checkpoint + 1;
 
-	std::array<index_type, DIM> domain_size = {LX, LY};
+	std::array<index_type, Dim> domain_size = {LX, LY};
 
 	//!!! todo: make it so that the viscosity is set by the setup, currently confusing
 	constexpr float_type visc = 0.01;	 // can be overridden by the setup
@@ -264,13 +258,13 @@ int main() {
 	// Choose setup and initialize
 	int test_case = 1;	// Taylor-Green Vortex
 	// if (test_case == 1) {
-	std::cout << "Initializing Taylor-Green Vortex..." << std::endl;
+	std::cout << "Initializing Taylor-Green Vortex..." << '\n';
 	TaylorGreenVortex<model_type> setup(*model);
 	// }
 	// else
 	// {
 	// int test_case = 2;  Double Periodic Shear Layer
-	// 	std::cout << "Initializing Double Periodic Shear Layer..." << std::endl;
+	// 	std::cout << "Initializing Double Periodic Shear Layer..." << '\n';
 	// DoublePeriodicShearLayer<model_type> setup(*model);
 	// }
 
@@ -282,7 +276,7 @@ int main() {
 	// Mass Conservation Check // cover with if-def DEBUG block
 
 	std::cout << "Running " << model->getModelName() << " simulation..."
-						<< std::endl;
+						<< '\n';
 
 	auto time_start = timer::GetCurrentTime();
 	for (size_t step = 0; step < NSTEPS; ++step) {
@@ -299,7 +293,7 @@ int main() {
 																std::to_string(step) + ".txt");
 
 			std::cout << "Step " << step << " (t=" << model->getCurrentTime()
-								<< ") completed" << std::endl;
+								<< ") completed" << '\n';
 		}
 
 		// run Taylor-Green Vortex validation, probably instead do a guard block here
@@ -308,7 +302,7 @@ int main() {
 		if (test_case == 1 && (model->getCurrentStep() % checkpoint == 0)) {
 			std::cout << "Step " << step << " (t=" << model->getCurrentTime()
 								<< ") completed" << "; non Dim Time = " << time_non_dim
-								<< std::endl;
+								<< '\n';
 			setup.compute_error(model->getCurrentTime());
 		}
 	}
@@ -320,16 +314,16 @@ int main() {
 		final_mass += model->getRhoAtIndex(i);
 	}
 	std::cout << "Mass Conservation Check. Initial Mass = " << initial_mass
-						<< std::endl;
+						<< '\n';
 	std::cout << "Mass Conservation Check. Total Mass = " << final_mass
-						<< std::endl;
+						<< '\n';
 	// Mass Conservation Check // cover with if-def DEBUG block
 
 	std::cout << "Simulation completed. Final step: " << model->getCurrentStep()
-						<< ", Final time: " << model->getCurrentTime() << std::endl;
+						<< ", Final time: " << model->getCurrentTime() << '\n';
 
 	auto elapsed_time = time_end - time_start;
-	std::cout << "total time elapsed : " << elapsed_time << std::endl;
+	std::cout << "total time elapsed : " << elapsed_time << '\n';
 
 	return 0;
 }

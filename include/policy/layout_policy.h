@@ -9,16 +9,16 @@
 
 // static policy to set the storage format for the populations/distribution functions.
 // choice between policies at compile time
-template <typename POLICY>
+template <typename Policy>
 concept LayoutPolicy = requires(index_type pop_idx, index_type node_idx,
 																index_type POP_SIZE, index_type DOMAIN_SIZE) {
 	{
-		POLICY::getIndex(pop_idx, node_idx, POP_SIZE, DOMAIN_SIZE)
+		Policy::getIndex(pop_idx, node_idx, POP_SIZE, DOMAIN_SIZE)
 	} -> std::same_as<index_type>;
-	{ POLICY::getPopStride(POP_SIZE, DOMAIN_SIZE) } -> std::same_as<index_type>;
-	{ POLICY::getNodeStride(POP_SIZE, DOMAIN_SIZE) } -> std::same_as<index_type>;
+	{ Policy::getPopStride(POP_SIZE, DOMAIN_SIZE) } -> std::same_as<index_type>;
+	{ Policy::getNodeStride(POP_SIZE, DOMAIN_SIZE) } -> std::same_as<index_type>;
 	// c++26 -> perhaps use of std::meta
-	{ POLICY::getPolicyName() } -> std::convertible_to<std::string_view>;
+	{ Policy::getPolicyName() } -> std::convertible_to<std::string_view>;
 };
 
 // Population Storage Policy: Structure of Arrays

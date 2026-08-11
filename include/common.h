@@ -32,11 +32,16 @@
 using float_type = double;
 using index_type = uint32_t;
 
-// user-defined literal for specifying float_type 
-constexpr float_type operator""_fp(long double v) noexcept {
-    return static_cast<float_type>(v);
-}
+enum class Axis : uint32_t {
+	X = 0,
+	Y = 1,
+	Z = 2,
+};
 
+// user-defined literal for specifying float_type
+constexpr float_type operator""_fp(long double v) noexcept {
+	return static_cast<float_type>(v);
+}
 
 // some mathematical constants
 constexpr float_type PI = std::numbers::pi_v<float_type>;

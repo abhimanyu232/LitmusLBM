@@ -8,87 +8,104 @@
 //todo: possibly avoided or improved using concepts
 
 // Standard LBM implementation inheriting from Models using CRTP
-template <LatticeType LATTICE, LayoutPolicy LAYOUT>
+template <LatticeType Lattice, LayoutPolicy Layout>
 class LBM {
  public:
 	// todo: make these short or uint_8t
-	static constexpr index_type DIM = LATTICE::DIM;
-	static constexpr index_type Q = LATTICE::Q;
-	static constexpr index_type Cs = LATTICE::Cs;
-	std::array<index_type, DIM> domain_size;
-	
- private:
+	static constexpr index_type Dim = Lattice::Dim;
+	static constexpr index_type Q = Lattice::Q;
+	static constexpr float_type Cs = Lattice::Cs;
+	std::array<index_type, Dim> domain_size;
 
-	//!!! todo: (perf) : causes pointer dereferencing in the hot loop
-	// consider storing it as a simple Mesh member. // !!! (profile)
-	std::unique_ptr<Mesh<LATTICE::DIM, LATTICE, LAYOUT>> mesh;
-
-	index_type total_nodes;
-	float_type nu, tau, beta;
-	float_type gamma, PrandtlNo, Cv;
-	size_t current_step;
-	double current_time;
-	double dt;
-
-	
-	public:
 	// Fields
 	// Flattened storage arrays
 	//!!! why are these dynamic vectors, the depend only on above static variables.
 	std::vector<float_type> f, f_new, rho;
 	// std::vector<float_type> energy;
-	std::vector<std::array<float_type, DIM>> velocity;
+	std::vector<std::array<float_type, Dim>> velocity;
 	std::vector<float_type> vorticity;
 
+ private:
+	//!!! todo: (perf) : causes pointer dereferencing in the hot loop
+	// consider storing it as a simple Mesh member. // !!! (profile)
+	std::unique_ptr<Mesh<Lattice::Dim, Lattice, Layout>> mesh;
+
+	index_type total_nodes;
+	float_type nu, tau, beta;
+	float_type gamma, PrandtlNo, Cv;
+	index_type current_step = 0;
+	double current_time = 0;
+	double dt;
+
+ public:
 	// Note: In 3D, vorticity would be a vector field
 
-	LBM(const std::array<index_type, DIM>& size, float_type viscosity)
-			: domain_size(size),
-				nu(viscosity),
-				current_step(0),
-				current_time(0.0),
-				dt(1.0) {
+	LBM(const std::array<index_type, Dim>& _size,
+			float_type _dt)	 //, float_type viscosity)
+			: domain_size(_size), dt(_dt) {
+		// Calculate total number of nodes
+		total_nodes = 1;
+		for (index_type d = 0; d < Dim; ++d) {
+			total_nodes *= domain_size[d];
+		}
+
+		mesh = std::make_unique<Mesh<Lattice::Dim, Lattice, Layout>>(domain_size);
+		// mesh->writeToFile();
+
+		// Initialize fields storage
+		// !!! todo: (mem) Q * total_nodes should fit inside uint32_t for domain < 500
+		f.resize(Q * total_nodes);
+		f_new.resize(Q * total_nodes);
+		rho.resize(total_nodes);
+		// energy.resize(total_nodes);
+		velocity.resize(total_nodes);
+		vorticity.resize(total_nodes);
+
+		// todo: now initisalize the fields using the SETUP::init() class call
+
+		std::cout << "Initialized " << Lattice::getName() << " LBM with "
+							<< total_nodes << " nodes" << '\n';
+	}
+
+	// todo: should also ideally call the setup->init() function here
+	void init() {
+		current_step = 0;
+		current_time = 0.0;
+
 		//todo: error checking here, check for tau > 0.5 (nu < 0) for stability
 		tau = 3.0 * nu + 0.5;
 		beta = 1 / (2 * tau);
 		if (tau <= 0.5) {
 			std::cerr << "Error: tau must be > 0.5 for stability (nu > 0). Got tau="
-								<< tau << std::endl;
+								<< tau << '\n';
 			std::exit(EXIT_FAILURE);
 		}
 
-		// Calculate total number of nodes
-		total_nodes = 1;
-		for (index_type d = 0; d < DIM; ++d) {
-			total_nodes *= domain_size[d];
+		// should compute the relaxation etc from the given viscosity etc
+		// must be called after the setup(eg tg-vortex) has initialized fields
+		//!!! call SETUP::init(); // this should be a call to taylor_green.init() etc
+		//!!! should be called by constructor of the lbm class
+	}
+
+	[[nodiscard]] float_type computeTotalMass() {
+		float_type mass_counter = 0.;
+#pragma omp parallel for reduction(+ : mass_counter)
+		for (index_type idx = 0; idx < total_nodes; ++idx) {
+			mass_counter += rho[idx];
 		}
-
-		mesh = std::make_unique<Mesh<LATTICE::DIM, LATTICE, LAYOUT>>(domain_size);
-		// mesh->writeToFile();
-
-		// Initialize storage
-		// !!! todo: (mem) Q * total_nodes should fit inside uint32_t for domain < 500
-		f.resize(Q * mesh->total_nodes);
-		f_new.resize(Q * mesh->total_nodes);
-		rho.resize(mesh->total_nodes);
-		// energy.resize(mesh->total_nodes);
-		velocity.resize(mesh->total_nodes);
-		vorticity.resize(mesh->total_nodes);
-
-		std::cout << "Initialized " << LATTICE::getName() << " LBM with "
-							<< mesh->total_nodes << " nodes" << std::endl;
+		return mass_counter;
 	}
 
 	float_type computeFEquilibrium(
 		index_type k, float_type rho_val,
-		const std::array<float_type, DIM>& u_vel) const {
+		const std::array<float_type, Dim>& u_vel) const {
 
-		const auto& v = LATTICE::velocities;
-		const auto& w = LATTICE::weights;
+		const auto& v = Lattice::velocities;
+		const auto& w = Lattice::weights;
 
 		float_type cu = 0.0;
 		float_type usqr = 0.0;
-		for (index_type d = 0; d < DIM; ++d) {
+		for (index_type d = 0; d < Dim; ++d) {
 			index_type cIdx = k + d * Q;	// !!! cache : strided access
 			cu += v[cIdx] * u_vel[d];
 			// cu += v[k][d] * u[d];
@@ -98,16 +115,10 @@ class LBM {
 					 (1.0_fp + 3.0_fp * cu + 4.5_fp * cu * cu - 1.5_fp * usqr);
 	}
 
-	// todo: should also ideally call the setup->init() function here
-	void init() {
-		current_step = 0;
-		current_time = 0.0;
-	}
-
 	// todo:!!! inline this function for better everything, lots of reuse here.
 	void step() {
-		const auto& v = LATTICE::velocities;
-		const auto& w = LATTICE::weights;
+		const auto& v = Lattice::velocities;
+		const auto& w = Lattice::weights;
 
 #pragma omp parallel
 		{
@@ -115,24 +126,24 @@ class LBM {
 		 *   stream();
 		*/
 #pragma omp for schedule(static)
-			for (index_type i = 0; i < mesh->total_nodes; ++i) {
+			for (index_type i = 0; i < total_nodes; ++i) {
 				// reset
 				float_type rho_acc = 0.0;
-				std::array<float_type, DIM> u_acc{};
+				std::array<float_type, Dim> u_acc{};
 				// float_type energy_acc = 0.0;
 
 				for (index_type k = 0; k < Q; ++k) {
 					// Layout agnostic index based on LayoutPolicy
 					// PULL : source pre-computed, destination using policy
 					index_type src = mesh->prev_neighbour_index[i][k];
-					index_type dst = LAYOUT::getIndex(k, i, Q, total_nodes);
+					index_type dst = Layout::getIndex(k, i, Q, total_nodes);
 					f[dst] = f_new[src];
 
 					float_type fk = f[dst];
 					// macro computation
 					// float_type temp_v2;
 					rho_acc += fk;
-					for (index_type d = 0; d < DIM; ++d) {
+					for (index_type d = 0; d < Dim; ++d) {
 						index_type cIdx = k + d * Q;
 						u_acc[d] += v[cIdx] * fk;	 // v[k][d]
 																			 // temp_v2 += v[cIdx] * v[cIdx];
@@ -142,11 +153,11 @@ class LBM {
 				// normalize
 				rho[i] = rho_acc;
 				if (rho_acc > 0.0) {
-					for (index_type d = 0; d < DIM; ++d) {
+					for (index_type d = 0; d < Dim; ++d) {
 						velocity[i][d] = u_acc[d] / rho_acc;
 					}
 					// energy[i] = energy_acc;
-					// temperature = (2 * energy_acc - (dot(velocity[i], velocity[i]))) / DIM;
+					// temperature = (2 * energy_acc - (dot(velocity[i], velocity[i]))) / Dim;
 				} else [[unlikely]] {
 					std::cerr << " negative density \n ";
 					// std::exit(EXIT_FAILURE);
@@ -162,23 +173,23 @@ class LBM {
 		 * collide();
 		*/
 #pragma omp for schedule(static)
-			for (index_type i = 0; i < mesh->total_nodes; ++i) {
+			for (index_type i = 0; i < total_nodes; ++i) {
 
 				float_type usqr{0.};
-				for (index_type d = 0; d < DIM; ++d) {	// dot(u,u)
+				for (index_type d = 0; d < Dim; ++d) {	// dot(u,u)
 					usqr += velocity[i][d] * velocity[i][d];
 				}
 
 				for (index_type k = 0; k < Q; ++k) {
 
 					// Layout agnostic index based on LayoutPolicy
-					index_type idx = LAYOUT::getIndex(k, i, Q, total_nodes);
+					index_type idx = Layout::getIndex(k, i, Q, total_nodes);
 
 					/**
 				 * computeEquilibrium
          */
 					float_type cu{0.0};
-					for (index_type d = 0; d < DIM; ++d) {
+					for (index_type d = 0; d < Dim; ++d) {
 						index_type cIdx = k + d * Q;
 						cu += v[cIdx] * velocity[i][d];
 					}
@@ -218,17 +229,17 @@ class LBM {
 		current_time += dt;
 	}
 
-	void setFAt(index_type k, index_type idx, float_type value) {
+	inline void setFAt(index_type k, index_type idx, float_type value) {
 		// Layout agnostic index
-		f_new[LAYOUT::getIndex(k, idx, LATTICE::Q, total_nodes)] = value;
+		f_new[Layout::getIndex(k, idx, Lattice::Q, total_nodes)] = value;
 	}
 
 	void computeVorticity() {
-		static_assert(DIM == 2,
+		static_assert(Dim == 2,
 									"Vorticity computation currently only implemented for 2D");
 
 #pragma omp parallel for
-		for (index_type i = 0; i < mesh->total_nodes; ++i) {
+		for (index_type i = 0; i < total_nodes; ++i) {
 			auto pos = mesh->nodes[i];
 
 			// todo: check for negatives at boundary
@@ -258,7 +269,7 @@ class LBM {
 
 	// todo: handle 3D  as well
 	void saveVelocityField(const std::string& filename) {
-		static_assert(DIM == 2, "File output currently only implemented for 2D");
+		static_assert(Dim == 2, "File output currently only implemented for 2D");
 
 		std::ofstream outFile(filename);
 		for (index_type y = 0; y < domain_size[1]; ++y) {
@@ -267,7 +278,7 @@ class LBM {
 				index_type idx = mesh->getNodeIndex(pos);
 
 				float_type vel_mag = 0.0;
-				for (index_type d = 0; d < DIM; ++d) {
+				for (index_type d = 0; d < Dim; ++d) {
 					vel_mag += velocity[idx][d] * velocity[idx][d];
 				}
 				vel_mag = std::sqrt(vel_mag);
@@ -283,7 +294,7 @@ class LBM {
 													 const index_type slice_axis,
 													 const std::string& filename) {
 
-		if (slice_axis >= DIM) [[unlikely]] {
+		if (slice_axis >= Dim) [[unlikely]] {
 			std::cerr << "Error: Slice Axis out of bounds, please choose 0,1,2. ";
 			return;
 		}
@@ -303,7 +314,7 @@ class LBM {
 			float_type normal_pos = static_cast<float_type>(xi) /
 															static_cast<float_type>(domain_size[0] - 1);
 			outFile << normal_pos << '\t' << velocity[idx][0] << '\t'
-							<< velocity[idx][1] << std::endl;
+							<< velocity[idx][1] << '\n';
 		}
 		outFile << "\n";
 		outFile.close();
@@ -311,7 +322,7 @@ class LBM {
 
 	// todo: handle 3D  as well
 	void saveVorticityField(const std::string& filename) {
-		static_assert(DIM == 2, "File output currently only implemented for 2D");
+		static_assert(Dim == 2, "File output currently only implemented for 2D");
 
 		std::ofstream outFile(filename);
 		for (index_type y = 0; y < domain_size[1]; ++y) {
@@ -325,13 +336,13 @@ class LBM {
 		outFile.close();
 	}
 
-	std::string getModelName() const {
-		return std::format("Standard LBM ({})", LATTICE::getName());
+	inline std::string getModelName() const {
+		return std::format("Standard LBM ({})", Lattice::getName());
 	}
 
-	size_t getCurrentStep() const { return current_step; }
+	inline index_type getCurrentStep() const { return current_step; }
 
-	double getCurrentTime() const { return current_time; }
+	inline double getCurrentTime() const { return current_time; }
 
 	void setViscosity(float_type viscosity) {
 		nu = viscosity;
@@ -345,35 +356,40 @@ class LBM {
 		nu = (tau - 0.5_fp) / 3.0_fp;
 	}
 
-	float_type getViscosity() const { return nu; }
+	inline float_type getViscosity() const { return nu; }
 
-	float_type getRelaxationTime() const { return tau; }
+	inline float_type getRelaxationTime() const { return tau; }
 
 	// Initialization helpers for external setups
-	index_type getTotalNodes() const { return mesh->total_nodes; }
+	inline index_type getTotalNodes() const { return total_nodes; }
 
-	index_type getF_Q() const { return Q; }
+	constexpr index_type getF_Q() const { return Q; }
 
-	float_type getFLatticeSpeedofSound() const { return LATTICE::Cs; }
+	constexpr float_type getFLatticeSpeedofSound() const { return Lattice::Cs; }
 
-	std::array<index_type, DIM> getLatticeSize() const { return domain_size; }
+	inline std::array<index_type, Dim> getLatticeSize() const {
+		return domain_size;
+	}
 
-	std::array<index_type, DIM> getPositionFromIndex(
+	inline std::array<index_type, Dim> getPositionFromIndex(
 		index_type flat_index) const {
 		return mesh->nodes[flat_index];
 	}
 
 	// class member functions are default inline
-	void setRhoAtIndex(index_type idx, float_type rho_val) { rho[idx] = rho_val; }
+	inline void setRhoAtIndex(index_type idx, float_type rho_val) {
+		rho[idx] = rho_val;
+	}
 
-	float_type getRhoAtIndex(index_type idx) const { return rho[idx]; }
+	inline float_type getRhoAtIndex(index_type idx) const { return rho[idx]; }
 
-	const std::array<float_type, DIM>& getVelocityAtIndex(index_type idx) const {
+	inline const std::array<float_type, Dim>& getVelocityAtIndex(
+		index_type idx) const {
 		return velocity[idx];
 	}
 
-	void setVelocityAtIndex(index_type idx,
-													const std::array<float_type, DIM>& u) {
+	inline void setVelocityAtIndex(index_type idx,
+																 const std::array<float_type, Dim>& u) {
 		velocity[idx] = u;
 	}
 };

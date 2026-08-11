@@ -5,14 +5,14 @@
 #include "lattices.h"
 #include "policy/layout_policy.h"
 
-template <index_type DIM, LatticeType LATTICE, LayoutPolicy LAYOUT>
+template <index_type Dim, LatticeType Lattice, LayoutPolicy Layout>
 struct Mesh {};
 
 // 2D Implementation of Mesh
-template <LatticeType LATTICE, LayoutPolicy LAYOUT>
-struct Mesh<2, LATTICE, LAYOUT> {
+template <LatticeType Lattice, LayoutPolicy Layout>
+struct Mesh<2, Lattice, Layout> {
 	// members
-	static constexpr index_type DIM = 2;
+	static constexpr index_type Dim = 2;
 	std::array<index_type, 2> domain_size;
 	index_type total_nodes{1};
 
@@ -27,8 +27,8 @@ struct Mesh<2, LATTICE, LAYOUT> {
 
 	// in 2D, D2Q9, 500x500, size_t = 18MB per neighbour index array
 	// !!! in 3D, D3Q27, 500x500x500, size_t = 27 GB of memory per neighbour index array
-	std::vector<std::array<index_type, LATTICE::Q>> next_neighbour_index;
-	std::vector<std::array<index_type, LATTICE::Q>> prev_neighbour_index;
+	std::vector<std::array<index_type, Lattice::Q>> next_neighbour_index;
+	std::vector<std::array<index_type, Lattice::Q>> prev_neighbour_index;
 
 	std::vector<std::array<index_type, 2>> inlet_nodes;
 	std::vector<std::array<index_type, 2>> outlet_nodes;
@@ -49,14 +49,14 @@ struct Mesh<2, LATTICE, LAYOUT> {
 	// standard constructor without a body/geometry
 	Mesh(std::array<index_type, 2> dimensions) : domain_size(dimensions) {
 
-		static_assert(LATTICE::DIM == 2,
+		static_assert(Lattice::Dim == 2,
 									"ERROR: 2D mesh initialized with 3D lattice \n");
 
 		total_nodes = 1;
 		for (index_type d = 0; d < 2; ++d)
 			total_nodes *= dimensions[d];
 
-		std::cout << "total nodes: " << total_nodes << std::endl;
+		std::cout << "total nodes: " << total_nodes << '\n';
 
 		nodes.resize(total_nodes);
 		next_neighbour_index.resize(total_nodes);
@@ -108,7 +108,7 @@ struct Mesh<2, LATTICE, LAYOUT> {
 	template <typename GEOMETRY>
 	Mesh(std::array<index_type, 2> dimensions, GEOMETRY* body)
 			: Mesh(dimensions) {
-		std::cerr << " Mesh with bodies inside not implemented yet" << std::endl;
+		std::cerr << " Mesh with bodies inside not implemented yet" <<  '\n';
 		std::exit(EXIT_FAILURE);
 
 		// then do the geometry detection logic
@@ -161,17 +161,17 @@ struct Mesh<2, LATTICE, LAYOUT> {
 	}
 };
 
-template <LatticeType LATTICE, LayoutPolicy LAYOUT>
-void Mesh<2, LATTICE, LAYOUT>::compute_neighbour_indices() {
-	const auto& v = LATTICE::velocities;
+template <LatticeType Lattice, LayoutPolicy Layout>
+void Mesh<2, Lattice, Layout>::compute_neighbour_indices() {
+	const auto& v = Lattice::velocities;
 	for (index_type idx = 0; idx < total_nodes; ++idx) {
 		std::array<index_type, 2> pos = nodes[idx];
 
 		// compute each neighbour : total Q neighbours
-		for (index_type k = 0; k < LATTICE::Q; ++k) {
+		for (index_type k = 0; k < Lattice::Q; ++k) {
 			std::array<index_type, 2> next_nb_pos, prev_nb_pos;
 			for (index_type d = 0; d < 2; ++d) {
-				index_type cIdx = k + d * LATTICE::Q;
+				index_type cIdx = k + d * Lattice::Q;
 
 				// !!! relies on unsigned integer underflow
 				// note: here int v[cIdx] is implicitly converted to unsigned index_type resulting in underflow.
@@ -189,9 +189,9 @@ void Mesh<2, LATTICE, LAYOUT>::compute_neighbour_indices() {
 
 			// Layout agnostic index
 			index_type next_idx =
-				LAYOUT::getIndex(k, getNodeIndex(next_nb_pos), LATTICE::Q, total_nodes);
+				Layout::getIndex(k, getNodeIndex(next_nb_pos), Lattice::Q, total_nodes);
 			index_type prev_idx =
-				LAYOUT::getIndex(k, getNodeIndex(prev_nb_pos), LATTICE::Q, total_nodes);
+				Layout::getIndex(k, getNodeIndex(prev_nb_pos), Lattice::Q, total_nodes);
 
 			next_neighbour_index[idx][k] = next_idx;
 			prev_neighbour_index[idx][k] = prev_idx;
@@ -208,12 +208,12 @@ void Mesh<2, LATTICE, LAYOUT>::compute_neighbour_indices() {
 // std::vector<index_type> right_nodes_index;
 // std::vector<index_type> left_nodes_index;
 
-// if (DIM == 3) {
+// if (Dim == 3) {
 // 	left_boundary_nodes.reserve(dimensions[0]);
 // 	right_boundary_nodes.reserve(dimensions[1]);
 // }
 
-// if (DIM == 3) {			// direction: looking inwards from the inlet
+// if (Dim == 3) {			// direction: looking inwards from the inlet
 // 	if (pos[2] == 0)	// right
 // 	{
 // 		right_nodes.push_back(pos);
