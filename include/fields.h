@@ -18,31 +18,31 @@ class ScalarField {
 	const T& operator[](index_type index) const { return data_[index]; }
 };
 
-template <typename T, index_type DIM>
+template <typename T, index_type Dim>
 class VectorField {
  private:
 	index_type size_;
-	std::vector<std::array<T, DIM>> data_;
+	std::vector<std::array<T, Dim>> data_;
 
  public:
 	explicit VectorField(index_type size) : size_(size), data_(size) {}
 
-	std::array<T, DIM>& operator[](index_type index) { return data_[index]; }
+	std::array<T, Dim>& operator[](index_type index) { return data_[index]; }
 
-	const std::array<T, DIM>& operator[](index_type index) const {
+	const std::array<T, Dim>& operator[](index_type index) const {
 		return data_[index];
 	}
 };
 
-template <typename T, LatticeType LATTICE>
+template <typename T, LatticeType Lattice>
 class Populations {
  private:
-	static constexpr index_type Q = LATTICE::Q;
-	static constexpr index_type DIM = LATTICE::DIM;
+	static constexpr index_type Q = Lattice::Q;
+	static constexpr index_type Dim = Lattice::Dim;
 
 	// f0_i .... f0_Q-1, f_new_i , ... f_new_Q-1
 	index_type domain_size_;
-	std::vector<std::array<T, LATTICE::Q>> data_;
+	std::vector<std::array<T, Lattice::Q>> data_;
 
  public:
 	Populations(index_type size) : domain_size_(size), data_(size * 2) {}
@@ -56,11 +56,11 @@ class Populations {
 
 	// access: Populations<float_type,D2Q9> f; f[OLD,0,..Q] and f[NEW,0,...,Q]
 	// 	access population vector at given node index
-	std::array<T, LATTICE::Q>& operator()(enum POP_ID, index_type index) {
+	std::array<T, Lattice::Q>& operator()(enum POP_ID, index_type index) {
 		return data_[(POP_ID * domain_size_) + index];
 	}
 
-	const std::array<T, LATTICE::Q>& operator()(enum POP_ID, index_type index) const {
+	const std::array<T, Lattice::Q>& operator()(enum POP_ID, index_type index) const {
 		return data_[(POP_ID * domain_size_) + index];
 	}
 
@@ -74,7 +74,7 @@ class Populations {
 	}
 };
 
-template <index_type SIZE, LatticeType LATTICE>
+template <index_type SIZE, LatticeType Lattice>
 class FieldSet {};
 
 #endif

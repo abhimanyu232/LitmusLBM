@@ -16,12 +16,12 @@
 template <typename L>
 concept LatticeType = requires {
 	// Compile-time constants exist and have sensible types
-	requires std::is_integral_v<decltype(L::DIM)>;
+	requires std::is_integral_v<decltype(L::Dim)>;
 	requires std::is_integral_v<decltype(L::Q)>;
 	requires std::is_floating_point_v<decltype(L::Cs)>;
-	// Static arrays exist with correct sizes (catches DIM*Q mismatch)
+	// Static arrays exist with correct sizes (catches Dim*Q mismatch)
 	requires std::tuple_size_v<std::remove_cvref_t<decltype(L::velocities)>> ==
-						 static_cast<index_type>(L::DIM* L::Q);
+						 static_cast<index_type>(L::Dim* L::Q);
 	requires std::tuple_size_v<std::remove_cvref_t<decltype(L::weights)>> ==
 						 static_cast<index_type>(L::Q);
 };
@@ -29,12 +29,12 @@ concept LatticeType = requires {
 // D2Q9 lattice implementation
 class D2Q9 {
  public:
-	static constexpr index_type DIM = 2;
+	static constexpr index_type Dim = 2;
 	static constexpr index_type Q = 9;
 	// static constexpr T0 = 1. / 3.0;
 	static constexpr float_type Cs = 1.0 / SQRT_3;
 
-	static constexpr std::array<int8_t, DIM * Q> velocities = {
+	static constexpr std::array<int8_t, Dim * Q> velocities = {
 		// x components
 		0, 1, 0, -1, 0, 1, -1, -1, 1,
 		// y components
@@ -56,7 +56,7 @@ class D2Q9 {
 
 	static float_type getLatticeSpeedofSound() { return Cs; }
 
-	const std::array<int8_t, DIM * Q>& getVelocities() const {
+	const std::array<int8_t, Dim * Q>& getVelocities() const {
 		return velocities;
 	}
 
@@ -68,9 +68,9 @@ class D2Q9 {
 // D2Q5 lattice implementation
 class D2Q5 {
  public:
-	static constexpr index_type DIM = 2;
+	static constexpr index_type Dim = 2;
 	static constexpr index_type Q = 5;
-	static constexpr std::array<int8_t, DIM * Q> velocities = {	 // x components
+	static constexpr std::array<int8_t, Dim * Q> velocities = {	 // x components
 		0, 1, 0, -1, 0,
 		// y components
 		0, 0, 1, 0, -1};
@@ -89,7 +89,7 @@ class D2Q5 {
 
 	static float_type getLatticeSpeedofSound() { return Cs; }
 
-	const std::array<int8_t, DIM * Q>& getVelocities() const {
+	const std::array<int8_t, Dim * Q>& getVelocities() const {
 		return velocities;
 	}
 
@@ -101,11 +101,11 @@ class D2Q5 {
 // D3Q19 lattice implementation
 class D3Q19 {
  public:
-	static constexpr index_type DIM = 3;
+	static constexpr index_type Dim = 3;
 	static constexpr index_type Q = 19;
 	static constexpr float_type Cs = 1. / SQRT_3;
 
-	static constexpr std::array<int8_t, DIM * Q> velocities = {
+	static constexpr std::array<int8_t, Dim * Q> velocities = {
 		// x components
 		0, 1, -1, 0, 0, 0, 0, 1, 1, -1, -1, 1, 1, -1, -1, 0, 0, 0, 0,
 		// y components
@@ -130,7 +130,7 @@ class D3Q19 {
 
 	static float_type getLatticeSpeedofSound() { return Cs; }
 
-	const std::array<int8_t, DIM * Q>& getVelocities() const {
+	const std::array<int8_t, Dim * Q>& getVelocities() const {
 		return velocities;
 	}
 
@@ -142,12 +142,12 @@ class D3Q19 {
 // D3Q27 lattice implementation
 class D3Q27 {
  public:
-	static constexpr index_type DIM = 3;
+	static constexpr index_type Dim = 3;
 	static constexpr index_type Q = 27;
 	static constexpr float_type Cs = 1. / SQRT_3;
 	// Initialize D3Q27 velocities: {cx, cy, cz}
 	// Order: rest particle, face neighbors, edge neighbors, corner neighbors
-	static constexpr std::array<int8_t, DIM * Q> velocities = {
+	static constexpr std::array<int8_t, Dim * Q> velocities = {
 		// x components
 		0, 1, -1, 0, 0, 0, 0, 1, 1, -1, -1, 1, 1, -1, -1, 0, 0, 0, 0, 1, 1, 1, 1,
 		-1, -1, -1, -1,
@@ -180,7 +180,7 @@ class D3Q27 {
 
 	static float_type getLatticeSpeedofSound() { return Cs; }
 
-	const std::array<int8_t, DIM * Q>& getVelocities() const {
+	const std::array<int8_t, Dim * Q>& getVelocities() const {
 		return velocities;
 	}
 

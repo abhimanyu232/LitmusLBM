@@ -1,3 +1,5 @@
+# output/temp files
+*.bak
 *.txt
 *.dat
 *.data
@@ -11,27 +13,29 @@
 *.jsonl.bz2
 *.jsonl.xz
 *.gz 
-
 *.png   
 
+# exception for cmake
+!CMakeLists.txt
+!CMakePresets.json
 
+# local graphics and plots
 plots/
-plots/*
 
+# build and results dir
+build/
 results*
 results_dir
 results_dir/*
 
-optimize_comparison_bins
-optimize_comparison_bins/*
+# new and old binaries
+*.x
+optimize_comparison_bins/
+bins/
+old_bins/
 
-*.kilo
-*.specstory
+# local scratch
 *.local
 
-session*
-
-*.x
-
-convert_to_mp4.sh
-compare_tgv_slices.py
+# convert_to_mp4.sh
+# compare_tgv_slices.py

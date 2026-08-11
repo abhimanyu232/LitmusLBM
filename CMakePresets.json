@@ -1,0 +1,107 @@
+{
+	"version": 8,
+	"configurePresets": [
+		{
+			"name": "base",
+			"hidden": true,
+			"binaryDir": "${sourceDir}/build/${presetName}",
+			"cacheVariables": {
+				"CMAKE_INSTALL_PREFIX": "${sourceDir}/bins/${presetName}",
+				"LITMUSLBM_WARNINGS": "ON",
+				"LITMUSLBM_NATIVE": "ON"
+			}
+		},
+		{
+			"name": "RelDebInfo_Testing",
+			"hidden": true,
+			"displayName": "RelDebInfo w/ Testing; Flags: -O2 -g -DNDEBUG",
+			"inherits": "base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "RelWithDebInfo",
+				"TESTING": "ON"
+			}
+		},
+		{
+			"name": "RelDebInfo",
+			"hidden": true,
+			"displayName": "RelDebInfo; Flags: -O2 -g -DNDEBUG",
+			"inherits": "base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "RelWithDebInfo"
+			}
+		},
+		{
+			"name": "Release_Testing",
+			"hidden": true,
+			"displayName": "Release w/ Testing; Flags: -O3 -DNDEBUG",
+			"inherits": "base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Release",
+				"TESTING": "ON"
+			}
+		},
+		{
+			"name": "Release",
+			"hidden": true,
+			"displayName": "Release; Flags: -O3 -DNDEBUG",
+			"inherits": "base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Release"
+			}
+		},
+		{
+			"name": "Debug",
+			"hidden": true,
+			"displayName": "Debug; Flags: -O0 -g",
+			"inherits": "base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug",
+				"CMAKE_CXX_FLAGS": "-Winvalid-constexpr"
+			}
+		},
+		{
+			"name": "Debug_Testing",
+			"hidden": true,
+			"displayName": "Debug w/ Testing; Flags: -O0 -g",
+			"inherits": "base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug",
+				"TESTING": "ON",
+				"CMAKE_CXX_FLAGS": "-O0 -Winvalid-constexpr"
+			}
+		}
+	],
+	"buildPresets": [
+		{
+			"name": "debug",
+			"hidden": true,
+			"configurePreset": "Debug"
+		},
+		{
+			"name": "debug-testing",
+			"hidden": true,
+			"configurePreset": "Debug_Testing"
+		},
+		{
+			"name": "reldebinfo",
+			"hidden": true,
+			"configurePreset": "RelDebInfo"
+		},
+		{
+			"name": "reldebinfo-testing",
+			"hidden": true,
+			"configurePreset": "RelDebInfo_Testing"
+		},
+		{
+			"name": "release",
+			"hidden": true,
+			"configurePreset": "Release"
+		},
+		{
+			"name": "release-testing",
+			"hidden": true,
+			"configurePreset": "Release_Testing"
+		}
+	],
+	"testPresets": []
+}
