@@ -10,7 +10,7 @@ Checks: >
   cppcoreguidelines-no-malloc,
   performance-move-const-arg,
   performance-noexcept-move-constructor,
-  -header-filter=include
+# -header-filter=include
 # HeaderFilterRegex: 'include'
 
 # WarningsAsErrors: "*"

@@ -1,2 +1,3 @@
+add_subdirectory(taylor_green_3D)
 add_subdirectory(taylor_green_2D)
 add_subdirectory(dbl_periodic_shear_layer_2D)

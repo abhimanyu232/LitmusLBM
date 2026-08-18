@@ -11,7 +11,7 @@ class DDF {
 	private:
 	//!!! todo: (perf) : causes pointer dereferencing in the hot loop
 	// consider storing it as a simple Mesh member. // !!! (profile)
-	std::unique_ptr<Mesh<Lattice::Dim, Lattice, Layout>> mesh;
+	Mesh<Lattice::Dim, Lattice, Layout> mesh;
 
 	float_type nu, alpha;	 // viscosity, thermal diffusivity
 	float_type omega_f, omega_g, beta_f, beta_g;
@@ -37,8 +37,7 @@ class DDF {
 
 	std::vector<float_type> f, f_new, rho;
 	std::vector<float_type> g, g_new, energy;
-	std::vector<std::array<float_type, Dim>> velocity;
-	std::vector<float_type> vorticity;
+	std::vector<std::array<float_type, 3>> velocity;
 
 	// std::vector<float_type> moments_f, moments_g;
 };

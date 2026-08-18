@@ -49,6 +49,15 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 find_package(OpenMP REQUIRED)
+find_package(MPI REQUIRED)
+set(HDF5_PREFER_PARALLEL ON)
+find_package(HDF5 REQUIRED COMPONENTS C)
+if(NOT HDF5_IS_PARALLEL)
+    message(FATAL_ERROR
+        "LitmusLBM requires a parallel HDF5 installation")
+endif()
+
+
 ###### hypothetical dependencies ######
 # find_package(Boost 1.36.0 COMPONENTS filesystem system REQUIRED)
 # target_link_libraries(example PUBLIC
@@ -63,18 +72,19 @@ set(COMMON_INCLUDES ${PROJECT_SOURCE_DIR}/include)
 ### INSTEAD of the above, use interface library to include directories
 add_library(LLBM INTERFACE) 
 target_include_directories(LLBM INTERFACE ${COMMON_INCLUDES})
-target_link_libraries(LLBM INTERFACE OpenMP::OpenMP_CXX)
+target_link_libraries(LLBM
+    INTERFACE
+        OpenMP::OpenMP_CXX
+        HDF5::HDF5
+        MPI::MPI_CXX)
 target_compile_features(LLBM INTERFACE cxx_std_23)
 set_target_properties(LLBM PROPERTIES CXX_CLANG_TIDY "${CMAKE_CXX_CLANG_TIDY}")
 
 ## IF I needed an external library, say header only Boost 
 # target_link_libraries(lm_matlib INTERFACE Boost::Boost)
 
-
 ### Define Targets
 add_subdirectory(src)
-
-
 
 # set(TESTING OFF CACHE BOOL "True if tests shall be built")
 # if (TESTING)

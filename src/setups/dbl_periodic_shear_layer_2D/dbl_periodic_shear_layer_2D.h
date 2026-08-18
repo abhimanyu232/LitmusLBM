@@ -10,8 +10,8 @@
 #include "mesh.h"
 #include "models/lbm.h"
 
-
-template <IsothermalModel ModelType, typename RunConfig>
+template <typename ModelType, typename RunConfig, typename WriterType>
+requires IsothermalModel<ModelType,WriterType>
 class DoublePeriodicShearLayer {
  public:
 	// setup: https://www.researchgate.net/publication/335029866_Pseudoentropic_derivation_of_the_regularized_lattice_Boltzmann_method
@@ -43,19 +43,20 @@ class DoublePeriodicShearLayer {
 	void initialize(ModelType& model) {
 		const auto size = model.getLatticeSize();
 		const index_type total_nodes = model.getTotalNodes();
-		const index_type Q =
-			model
-				.getF_Q();	//!!! why am I calling a runtime function for compile time info???
+		const index_type Q = model.getF_Q();
+		//!!! why am I calling a runtime function for compile time info???
+		model.setViscosity(u0 * size[0] / reynolds);
+		std::cout << " Viscosity Set : nu = " << model.getViscosity() << '\n';
+
 		for (index_type i = 0; i < total_nodes; ++i) {
 			auto pos = model.getPositionFromIndex(i);
 			float_type x_pos = static_cast<float_type>(pos[0]) / (size[0]);
 			float_type y_pos = static_cast<float_type>(pos[1]) / (size[1]);
-			std::array<float_type, 2> u;
+			std::array<float_type, 3> u{};
 
 			// NOTE: only stable ish for size 200x200.
 			// NOTE: Blows up at 160x160
 			// !!! need entropic etc for higher reynolds numbers.
-			model.setViscosity(u0 * size[0] / reynolds);
 			if (y_pos <= 0.5) {
 				u[0] = u0 * tanh((y_pos - 0.25) * lambda);
 			} else {

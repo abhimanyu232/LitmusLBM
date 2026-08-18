@@ -10,9 +10,10 @@
 #include "mesh.h"
 #include "models/lbm.h"
 
-
 // todo: need class members, initial values of macro quantities etc, useful for calculations later.
-template <IsothermalModel ModelType, typename RunConfig>
+// possibly here: BC_type BoundaryCondition = NoBC
+template <typename ModelType, typename RunConfig, typename WriterType>
+requires IsothermalModel<ModelType,WriterType>
 class TaylorGreenVortex_2D {
  public:
 	// set-up from Kallikounis Thesis : Re= 50 = [u0*L/nu]
@@ -45,7 +46,7 @@ class TaylorGreenVortex_2D {
 			auto pos = model.getPositionFromIndex(i);
 			float_type x_pos = static_cast<float_type>(pos[0]) / (size[0]);	 // - 1)
 			float_type y_pos = static_cast<float_type>(pos[1]) / (size[1]);	 // - 1)
-			std::array<float_type, 2> u;
+			std::array<float_type, 3> u{};
 			u[0] = -u0 * cos(2 * PI * x_pos) * sin(2 * PI * y_pos);
 			u[1] = u0 * sin(2 * PI * x_pos) * cos(2 * PI * y_pos);
 			model.setVelocityAtIndex(i, u);
@@ -64,6 +65,12 @@ class TaylorGreenVortex_2D {
 
 	void diagnose(const ModelType& model) { compute_error(model); };
 
+	// void apply_bc(const ModelType& model) {
+	// 	if constexpr (BoundaryCondition::type != NoBC::type) {
+	// 		bc.apply(model);
+	// 	}
+	// }
+
  private:
 	void compute_error(const ModelType& model, Axis slice_axis = Axis::X,
 										 float_type slice_norm_position = 0.125) {
@@ -80,7 +87,7 @@ class TaylorGreenVortex_2D {
 			size[static_cast<std::size_t>(Axis::Y)] * slice_norm_position);
 
 		const std::string filename_slice =
-			"slice2D" + std::to_string(slice_position) + "_" +
+			"slice2D_error" + std::to_string(slice_position) + "_" +
 			std::to_string(static_cast<int>(time)) + ".dat";
 		std::ofstream ofile_slice(filename_slice);
 		ofile_slice << "Xpos" << '\t' << "Ux_{Exact}" << ' ' << "Ux_{LBM}" << '\t'
@@ -129,7 +136,7 @@ class TaylorGreenVortex_2D {
 			float_type local_uy_sq_err = std::pow(uy_exact - u_lbm[1], 2);
 
 			// calculate L2 vel error over slice
-			if (pos[static_cast<std::size_t>(slice_axis)] ==
+			if (pos[static_cast<std::size_t>(Axis::Y)] ==
 					slice_position) {	 // pos[1] = y position
 				slice_ux_sq_err_runner += local_ux_sq_err;
 				slice_uy_sq_err_runner += local_uy_sq_err;

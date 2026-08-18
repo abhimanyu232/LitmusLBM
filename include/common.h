@@ -30,7 +30,9 @@
 //!!! todo: integrate to easily switch precision and save memory
 // type aliases for floating point and index types
 using float_type = double;
-using index_type = uint32_t;
+// uint32_t not sufficient for reasonably sized 3D lattices (>541x541x541)
+// use uint64_t for safety
+using index_type = uint64_t;
 
 enum class Axis : uint32_t {
 	X = 0,

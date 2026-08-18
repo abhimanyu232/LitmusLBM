@@ -14,6 +14,7 @@ currently under active development.
 **Dependencies and Requirements**
 ------
 * Compiler : Tested with `gcc 15.2.0` and above, with `--std=c++23`
+* HDF5 : Requires C API and MPI 
 
 **Current Model Features**
 ---
@@ -23,7 +24,10 @@ currently under active development.
     - 3D: D3Q19, D3Q27 
   - Validated Setups
       - Taylor Green Vortex 2D
+      - Taylor Green Vortex 3D
       - Double Periodic Shear Layer 2D
+  - Output
+    - HDF5VTK writer 
 
 **Build instructions** 
 ---
@@ -36,8 +40,8 @@ currently under active development.
 ---
 - 3D Validation
 - Boundary Conditions
-- Shared Memory Parallelisation (OpenMP)
 - Compressible Flow Simulations with Double Distribution Function Models
+- MPI Implementation
 - Cuda Implementation
 
 
